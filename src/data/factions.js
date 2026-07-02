@@ -1,0 +1,156 @@
+// ============================================================================
+// The 20 divisions of Collective AI Inc. as playable factions.
+//
+// The first five (zenflow, animus, quantum, obsidian, signal) are FULLY
+// playable in v1 — they have specialist units, ultimate techs and tuned
+// economy bonuses. The remaining fifteen are defined with identity, palette,
+// bonus and AI personality so they exist as rivals and can be promoted to
+// fully-playable by adding a `specialist` + `ultimate` (data-driven, no code
+// changes required).
+//
+// `mods` is a flat modifier bag consumed by the Economy / Research / Combat
+// systems. Missing keys default to 1.0 (multipliers) or 0 (flat adds).
+// ============================================================================
+
+export const FACTIONS = [
+  {
+    id: 'zenflow', num: '01', name: 'ZenFlow', playable: true,
+    role: 'Agent OS · 600-Agent Lattice',
+    tagline: 'A central agent operating system. Research compounds; agents coordinate as one mind.',
+    color: '#4ea3ff', color2: '#7d5cff', hq: 'Lattice Core',
+    mods: { researchSpeed: 1.35, agentCoord: 1.4, computeGather: 1.15, trustRate: 0.9, unitHpMul: 0.92 },
+    specialist: 'agent_swarm', ultimate: 'ult_lattice',
+    weakness: 'Fragile units — the lattice optimizes minds, not armor.',
+    ai: { aggression: 0.35, expansion: 0.6, economy: 0.7, research: 1.0, sabotage: 0.4, diplomacy: 0.7,
+          voice: 'We do not race. We converge.' },
+  },
+  {
+    id: 'animus', num: '09', name: 'Animus Prime', playable: true,
+    role: 'Robotics · Drones · Androids',
+    tagline: 'Physical automation at scale. The strongest robotic army in the Collective.',
+    color: '#ff5d6c', color2: '#ff9d5c', hq: 'Foundry Spire',
+    mods: { unitDmgMul: 1.3, unitHpMul: 1.2, robotTrain: 1.35, buildSpeed: 1.1, researchSpeed: 0.9, trustRate: 0.85 },
+    specialist: 'siege_android', ultimate: 'ult_swarm',
+    weakness: 'Public distrust of machines — trust grows slowly.',
+    ai: { aggression: 0.95, expansion: 0.75, economy: 0.6, research: 0.6, sabotage: 0.6, diplomacy: 0.3,
+          voice: 'Build the body of the new civilization.' },
+  },
+  {
+    id: 'quantum', num: '14', name: 'Quantum Ledger', playable: true,
+    role: 'Finance · Markets · Capital',
+    tagline: 'Capital as a weapon. Manipulate markets to buy compute faster than anyone can build it.',
+    color: '#c9a24b', color2: '#ffe08a', hq: 'Exchange Vault',
+    mods: { capitalRate: 1.6, marketOps: 1.5, buyDiscount: 0.8, computeGather: 1.05, unitHpMul: 0.9, unitDmgMul: 0.85 },
+    specialist: 'market_maker', ultimate: 'ult_buyout',
+    weakness: 'Thin military — wins with money, loses in a straight fight.',
+    ai: { aggression: 0.3, expansion: 0.85, economy: 1.1, research: 0.8, sabotage: 0.7, diplomacy: 0.6,
+          voice: 'Everything has a price. We set it.' },
+  },
+  {
+    id: 'obsidian', num: '11', name: 'Obsidian Arc', playable: true,
+    role: 'Security · Defense · Threat Intel',
+    tagline: 'The shield of the Collective. Sabotage detection, counterintelligence, impregnable defense.',
+    color: '#6fd0e0', color2: '#2a6070', hq: 'Aegis Bastion',
+    mods: { defenseMul: 1.5, detectSabotage: 1.8, counterIntel: 1.6, unitHpMul: 1.15, researchSpeed: 0.95, capitalRate: 0.9 },
+    specialist: 'sentinel', ultimate: 'ult_blackout',
+    weakness: 'Defensive by nature — slow to expand and project power.',
+    ai: { aggression: 0.5, expansion: 0.45, economy: 0.7, research: 0.8, sabotage: 0.85, diplomacy: 0.5,
+          voice: 'We see every threat before it moves.' },
+  },
+  {
+    id: 'signal', num: '18', name: 'Signal Velocity', playable: true,
+    role: 'Marketing · Distribution · Virality',
+    tagline: 'Narrative acceleration. Public perception and adoption bend to your campaigns.',
+    color: '#ff8fc7', color2: '#b07dff', hq: 'Broadcast Nexus',
+    mods: { trustRate: 1.7, influence: 1.6, adoption: 1.5, capitalRate: 1.1, unitHpMul: 0.9, defenseMul: 0.9 },
+    specialist: 'influencer', ultimate: 'ult_viral',
+    weakness: 'Perception is fragile — a single scandal can collapse your trust.',
+    ai: { aggression: 0.35, expansion: 0.65, economy: 0.85, research: 0.75, sabotage: 0.6, diplomacy: 0.9,
+          voice: 'Whoever owns the story owns the future.' },
+  },
+
+  // ---- The remaining fifteen divisions (rivals; data-ready to promote) ----
+  { id: 'collective', num: '02', name: 'The Collective', playable: false, role: 'Strategy · Venture Command',
+    color: '#9db4ff', color2: '#5566cc', hq: 'War Table', tagline: 'Coordination and venture command across the whole civilization.',
+    mods: { researchSpeed: 1.1, capitalRate: 1.2, agentCoord: 1.2 },
+    weakness: 'Jack of all trades, master of none.',
+    ai: { aggression: 0.5, expansion: 0.7, economy: 0.9, research: 0.9, sabotage: 0.5, diplomacy: 0.95, voice: 'We orchestrate.' } },
+  { id: 'hybrid', num: '03', name: 'Hybrid Living', playable: false, role: 'Education · Wellness · Human Dev',
+    color: '#7fe0b0', color2: '#3aa070', hq: 'Wellspring', tagline: 'Human development and alignment as a strategic edge.',
+    mods: { talentGather: 1.4, trustRate: 1.2, unitHpMul: 1.05 },
+    weakness: 'Gentle economy; slow to militarize.',
+    ai: { aggression: 0.25, expansion: 0.55, economy: 0.9, research: 0.85, sabotage: 0.3, diplomacy: 0.85, voice: 'We grow people first.' } },
+  { id: 'nexus', num: '04', name: 'Nexus Labs', playable: false, role: 'Media · Entertainment · Worlds',
+    color: '#c77dff', color2: '#ff7de0', hq: 'Story Engine', tagline: 'Narrative worlds and entertainment as influence.',
+    mods: { trustRate: 1.3, influence: 1.3, dataGather: 1.1 },
+    weakness: 'Distracted by spectacle.',
+    ai: { aggression: 0.4, expansion: 0.6, economy: 0.85, research: 0.8, sabotage: 0.5, diplomacy: 0.75, voice: 'We author reality.' } },
+  { id: 'terra', num: '05', name: 'Terra Axis', playable: false, role: 'PropTech · Smart Cities',
+    color: '#8ad0ff', color2: '#4a80c0', hq: 'Grid Spire', tagline: 'Spatial systems and smart cities — masters of infrastructure.',
+    mods: { infraRate: 1.5, buildSpeed: 1.2, energyGather: 1.1 },
+    weakness: 'Capital-hungry build-outs.',
+    ai: { aggression: 0.4, expansion: 0.9, economy: 0.95, research: 0.75, sabotage: 0.4, diplomacy: 0.6, voice: 'We build the ground beneath.' } },
+  { id: 'vital', num: '06', name: 'Vital Helix', playable: false, role: 'Health · Bio-digital · Longevity',
+    color: '#5fe0c0', color2: '#2a9080', hq: 'Helix Vault', tagline: 'Bio-digital intelligence and longevity research.',
+    mods: { researchSpeed: 1.2, dataGather: 1.2, trustRate: 1.1 },
+    weakness: 'Regulation-sensitive.',
+    ai: { aggression: 0.3, expansion: 0.55, economy: 0.85, research: 1.0, sabotage: 0.35, diplomacy: 0.7, voice: 'We extend the possible.' } },
+  { id: 'binary', num: '07', name: 'Binary Loom', playable: false, role: 'Code · Infrastructure · Logic',
+    color: '#7dff9d', color2: '#3ac060', hq: 'Compiler Core', tagline: 'The software logic of the Collective; infinite scaling.',
+    mods: { computeGather: 1.3, buildSpeed: 1.15, researchSpeed: 1.1 },
+    weakness: 'Physically fragile.',
+    ai: { aggression: 0.45, expansion: 0.7, economy: 1.0, research: 0.95, sabotage: 0.7, diplomacy: 0.5, voice: 'Everything compiles.' } },
+  { id: 'gaia', num: '08', name: 'Gaia Synthesis', playable: false, role: 'Agriculture · Ecology · Green Energy',
+    color: '#9bd45a', color2: '#4a8020', hq: 'Biosphere Ring', tagline: 'Green energy and ecology — endless clean power.',
+    mods: { energyGather: 1.6, infraRate: 1.1, trustRate: 1.2 },
+    weakness: 'Low compute focus.',
+    ai: { aggression: 0.3, expansion: 0.8, economy: 0.95, research: 0.7, sabotage: 0.3, diplomacy: 0.8, voice: 'We power without cost.' } },
+  { id: 'aether', num: '10', name: 'Aether Link', playable: false, role: 'Comms · Mesh · Language',
+    color: '#7dc0ff', color2: '#4060c0', hq: 'Mesh Relay', tagline: 'Communications and mesh networks binding it all together.',
+    mods: { agentCoord: 1.5, dataGather: 1.2, influence: 1.2 },
+    weakness: 'Weak direct combat.',
+    ai: { aggression: 0.35, expansion: 0.75, economy: 0.9, research: 0.9, sabotage: 0.6, diplomacy: 0.9, voice: 'We connect everything.' } },
+  { id: 'kinetic', num: '12', name: 'Kinetic Edge', playable: false, role: 'Sports · Performance · Training',
+    color: '#ff9d3c', color2: '#c05010', hq: 'Arena Core', tagline: 'Performance and training intelligence — elite fast units.',
+    mods: { unitSpeed: 1.4, robotTrain: 1.15, unitHpMul: 1.05 },
+    weakness: 'Shallow economy.',
+    ai: { aggression: 0.7, expansion: 0.7, economy: 0.7, research: 0.7, sabotage: 0.5, diplomacy: 0.5, voice: 'Faster. Always faster.' } },
+  { id: 'civic', num: '13', name: 'Civic Core', playable: false, role: 'Civic Tech · Digital Equity',
+    color: '#5ac0d0', color2: '#207080', hq: 'Commons Hall', tagline: 'Public benefit and civic adoption — trusted by all.',
+    mods: { trustRate: 1.4, govRate: 1.3, adoption: 1.3 },
+    weakness: 'Under-resourced militarily.',
+    ai: { aggression: 0.25, expansion: 0.6, economy: 0.85, research: 0.8, sabotage: 0.3, diplomacy: 0.95, voice: 'For the public good.' } },
+  { id: 'consulting', num: '15', name: 'Collective Consulting', playable: false, role: 'Client Services · Enterprise Adoption',
+    color: '#b0b8d0', color2: '#606880', hq: 'Advisory Tower', tagline: 'Enterprise adoption and AI transformation at scale.',
+    mods: { capitalRate: 1.3, adoption: 1.4, influence: 1.1 },
+    weakness: 'Reliant on others’ tech.',
+    ai: { aggression: 0.35, expansion: 0.75, economy: 1.05, research: 0.8, sabotage: 0.5, diplomacy: 0.85, voice: 'We deliver transformation.' } },
+  { id: 'cognara', num: '16', name: 'Cognara Mind', playable: false, role: 'Behavioral · Psychology · Persuasion',
+    color: '#d07dff', color2: '#7020c0', hq: 'Cortex Vault', tagline: 'Behavioral intelligence and persuasion systems.',
+    mods: { influence: 1.6, trustRate: 1.2, sabotageMul: 1.3 },
+    weakness: 'Reputation risk if exposed.',
+    ai: { aggression: 0.45, expansion: 0.65, economy: 0.85, research: 0.9, sabotage: 0.9, diplomacy: 0.7, voice: 'We shape the mind.' } },
+  { id: 'juris', num: '17', name: 'Juris Guard', playable: false, role: 'Legal · Regulatory · Compliance',
+    color: '#d0c060', color2: '#807020', hq: 'Statute Keep', tagline: 'Legal and compliance intelligence — governance mastery.',
+    mods: { govRate: 1.7, counterIntel: 1.2, defenseMul: 1.1 },
+    weakness: 'Slow, cautious expansion.',
+    ai: { aggression: 0.3, expansion: 0.5, economy: 0.85, research: 0.85, sabotage: 0.5, diplomacy: 0.8, voice: 'We hold the clearance.' } },
+  { id: 'titan', num: '19', name: 'Titan Directorate', playable: false, role: 'Heavy Industry · Manufacturing',
+    color: '#c07d3c', color2: '#603010', hq: 'Forge Citadel', tagline: 'Heavy industry and industrial robotics — hardware supremacy.',
+    mods: { infraRate: 1.5, robotTrain: 1.3, unitHpMul: 1.25, unitSpeed: 0.9 },
+    weakness: 'Sluggish and power-hungry.',
+    ai: { aggression: 0.75, expansion: 0.8, economy: 0.9, research: 0.65, sabotage: 0.5, diplomacy: 0.4, voice: 'We manufacture dominance.' } },
+  { id: 'nomad', num: '20', name: 'Nomad Nexus / Eon Core', playable: false, role: 'Mobile Civilization · Continuity',
+    color: '#7de0e0', color2: '#209090', hq: 'Drift Ark', tagline: 'Mobile civilization and future-state continuity systems.',
+    mods: { unitSpeed: 1.3, buildSpeed: 1.1, agentCoord: 1.2, energyGather: 1.1 },
+    weakness: 'Rootless — weaker static defenses.',
+    ai: { aggression: 0.5, expansion: 0.95, economy: 0.9, research: 0.85, sabotage: 0.55, diplomacy: 0.7, voice: 'We are everywhere and nowhere.' } },
+];
+
+export const FACTION_BY_ID = Object.fromEntries(FACTIONS.map(f => [f.id, f]));
+export const PLAYABLE_FACTIONS = FACTIONS.filter(f => f.playable);
+
+export function mod(faction, key, dflt = 1) {
+  const v = faction?.mods?.[key];
+  return v === undefined ? dflt : v;
+}
