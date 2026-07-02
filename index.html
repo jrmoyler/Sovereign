@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>SOVEREIGN — Collective AI Inc.</title>
+  <link rel="stylesheet" href="src/ui/styles.css" />
+  <!--
+    Import map: resolve bare "three" and "three/addons/*" specifiers to the
+    locally vendored Three.js build. No build step, no CDN at runtime.
+  -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/build/three.module.js",
+      "three/addons/": "./vendor/three/addons/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- WebGL canvas host -->
+  <div id="viewport"></div>
+
+  <!-- All HUD / overlay DOM is created by the UI modules at runtime and
+       mounted here so the simulation stays fully decoupled from the DOM. -->
+  <div id="ui-root"></div>
+
+  <!-- Loading splash (removed once assets + scene are ready) -->
+  <div id="boot">
+    <div class="boot-inner">
+      <div class="boot-logo">SOVEREIGN</div>
+      <div class="boot-sub">Collective AI Inc. — Race to Sovereign Intelligence</div>
+      <div class="boot-bar"><div class="boot-bar-fill" id="boot-bar-fill"></div></div>
+      <div class="boot-status" id="boot-status">Initializing lattice…</div>
+    </div>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
