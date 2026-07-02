@@ -2,8 +2,9 @@
 
 A playable, cinematic **3D real-time strategy game** in the browser. Age-of-Empires-style
 bird's-eye gameplay reimagined as a strategic simulation of **Collective AI Inc.** becoming a
-full-stack AI civilization. You lead one of the company's **20 divisions** and race rival
-divisions to build **Sovereign Intelligence** — superintelligence — before they do.
+full-stack AI civilization. You lead **any of the company's 20 divisions** — every division is
+fully playable — and race rival divisions to build **Sovereign Intelligence** —
+superintelligence — before they do.
 
 Built with **Three.js + plain ES modules. No build step. No framework. No TypeScript.**
 Runs from a local static server.
@@ -62,8 +63,22 @@ threshold for a short time.
 | Rotate camera | `Q` / `E` or middle-drag |
 | Zoom | Scroll / `+` `−` |
 | Center on selection | `Space` |
+| Control groups | `Ctrl+1…9` assign · `1…9` recall (double-tap to center) |
 | Research tree | `T` · Strategic actions `A` · Help `H` · Pause `Esc` |
-| Mobile | One-finger tap/drag select · two-finger pan/zoom/rotate · on-screen buttons |
+
+### Touch controls (phones & tablets)
+
+| Action | Gesture |
+| --- | --- |
+| Select unit / building | Tap it |
+| Box-select units | One-finger drag |
+| Move / Attack / Gather | Tap ground, enemy or resource node with units selected |
+| Set building rally | Tap ground with a building selected |
+| Pan / Zoom / Rotate camera | Two-finger drag / pinch / twist |
+| Clear selection · fullscreen | On-screen `✕` / `⛶` buttons |
+
+The HUD reflows for small screens, touch targets grow, and build placement gets a floating
+cancel button.
 
 ### The economy (8 resources)
 
@@ -77,26 +92,34 @@ threshold for a short time.
 
 ---
 
-## The 20 divisions
+## The 20 divisions — all fully playable
 
-Five are **fully playable** in v1 (unique specialist unit + ultimate tech + tuned economy);
-all twenty exist as data-driven **AI rivals** and can be promoted to fully playable by adding a
-specialist + ultimate in `src/data/` — no engine changes required.
+Every division has a unique colour palette, HQ, economy bonus, **specialist unit**,
+**ultimate technology**, weakness, and AI personality profile (any division can also appear
+as an AI rival).
 
-| Playable | Division | Identity |
+| Division | Specialist | Ultimate |
 | --- | --- | --- |
-| ★ | **01 ZenFlow** | Agent OS — strongest research acceleration & agent coordination |
-| ★ | **09 Animus Prime** | Robotics — strongest combat unit production |
-| ★ | **14 Quantum Ledger** | Finance — strongest capital & market manipulation |
-| ★ | **11 Obsidian Arc** | Security — strongest defense & counterintelligence |
-| ★ | **18 Signal Velocity** | Marketing — strongest public perception & adoption |
-
-Rivals: The Collective, Hybrid Living, Nexus Labs, Terra Axis, Vital Helix, Binary Loom,
-Gaia Synthesis, Aether Link, Kinetic Edge, Civic Core, Collective Consulting, Cognara Mind,
-Juris Guard, Titan Directorate, Nomad Nexus / Eon Core.
-
-Each faction has a unique colour palette, HQ, economy bonus, research branch, specialist unit,
-ultimate technology, weakness, and AI personality profile.
+| **01 ZenFlow** — Agent OS | Agent Swarm | 600-Agent Lattice |
+| **02 The Collective** — Strategy | Venture Strategist | Grand Orchestration |
+| **03 Hybrid Living** — Human Dev | Mentor | Human Flourishing |
+| **04 Nexus Labs** — Media & Worlds | Worldsmith | Dreamforge |
+| **05 Terra Axis** — Smart Cities | Gridwright | Instant Metropolis |
+| **06 Vital Helix** — Bio-digital | Biomedic (heals) | Longevity Protocol |
+| **07 Binary Loom** — Code | Compiler Daemon | Reality Compiler |
+| **08 Gaia Synthesis** — Green Energy | Terraformer | Closed Biosphere |
+| **09 Animus Prime** — Robotics | Siege Android | Legion Protocol |
+| **10 Aether Link** — Comms Mesh | Relay Warden | Omnimesh |
+| **11 Obsidian Arc** — Security | Sentinel | Total Blackout |
+| **12 Kinetic Edge** — Performance | Pacesetter | Overdrive |
+| **13 Civic Core** — Civic Tech | Community Organizer | Public Mandate |
+| **14 Quantum Ledger** — Finance | Market Maker | Hostile Buyout |
+| **15 Collective Consulting** — Enterprise | Transformation Lead | Total Transformation |
+| **16 Cognara Mind** — Behavioral | Mesmerist | Mindshare Monopoly |
+| **17 Juris Guard** — Legal | Lead Advocate | Binding Precedent |
+| **18 Signal Velocity** — Marketing | Influencer | Total Virality |
+| **19 Titan Directorate** — Heavy Industry | Juggernaut | Titanfall Doctrine |
+| **20 Nomad Nexus / Eon Core** — Mobile Civ | Pathfinder | Eternal Exodus |
 
 ---
 
@@ -125,7 +148,8 @@ src/
     Renderer.js         Scene, lights, fog, bloom, shadows, picking, event → FX
     CameraRig.js        RTS bird's-eye camera (pan/zoom/rotate/pitch, damped)
     Terrain.js          Obsidian ground, grid, glowing data routes, boundary
-    ModelFactory.js     Procedural building + resource-node meshes
+    ModelFactory.js     Procedural architecture: massing + window-façade
+                        textures + roof/detail modules, merged by material
     EntityView.js       Per-entity object, skeletal animation, HP bars, selection
     Effects.js          Tracers, impacts, explosions, floating text, camera shake
     Assets.js           glTF loading + skinned-mesh cloning
@@ -146,13 +170,28 @@ vendor/three/         Vendored Three.js r169 (build + addons) — no CDN at runt
 assets/models/        Real rigged glTF models (see CREDITS.md)
 ```
 
+### Tests
+
+The simulation is fully decoupled from the DOM/Three.js, so it runs headless under Node:
+
+```bash
+node tests/sim.test.mjs
+```
+
+This checks data integrity for all 20 divisions (specialists, ultimates, tech gates,
+production buildings), plays a scripted match against AI rivals, and verifies research,
+training, construction, elimination and both victory paths.
+
 ### Performance notes
 
 - Vendored Three.js, no runtime CDN; import maps resolve bare specifiers.
-- Pixel ratio capped, PCF soft shadows, single bloom pass, pooled/short-lived FX.
+- Pixel ratio capped (tighter on touch devices), PCF soft shadows (1024 on mobile),
+  single bloom pass, pooled/short-lived FX.
 - Fixed-step sim with a max-steps clamp prevents spiral-of-death on slow frames.
-- Skinned models are cloned from two shared glTF sources; procedural building meshes are
-  low-poly with emissive accents.
+- Skinned models are cloned from two shared glTF sources.
+- Buildings are compiled procedurally: canvas-generated window-façade textures (cached per
+  faction accent), memoized shared materials, and all static parts merged into one mesh per
+  material — a full base renders in a handful of draw calls.
 
 ---
 

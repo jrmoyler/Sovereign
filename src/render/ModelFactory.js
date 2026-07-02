@@ -75,14 +75,14 @@ function makeFacade(kind, accentCss) {
     for (let col = 0; col < COLS; col++) {
       const x = col * cw, y = row * ch;
       let wx, wy, ww, wh;
-      if (kind === 'glass') { wx = x + 1; wy = y + 3; ww = cw - 2; wh = ch - 4; }
+      if (kind === 'glass') { wx = x + 2; wy = y + 4; ww = cw - 4; wh = ch - 6; }
       else if (kind === 'industrial') {
         // high clerestory strip windows only on some rows
         if (row % 2 !== 0) continue;
-        wx = x + 3; wy = y + 3; ww = cw - 6; wh = ch * 0.28;
-      } else if (kind === 'residential') { wx = x + 3; wy = y + 4; ww = cw - 6; wh = ch - 9; }
-      else if (kind === 'civic') { wx = x + 4; wy = y + 4; ww = cw - 8; wh = ch - 8; }
-      else { wx = x + 3; wy = y + 4; ww = cw - 6; wh = ch - 8; }
+        wx = x + 5; wy = y + 4; ww = cw - 10; wh = ch * 0.22;
+      } else if (kind === 'residential') { wx = x + 8; wy = y + 7; ww = cw - 16; wh = ch - 13; }
+      else if (kind === 'civic') { wx = x + 10; wy = y + 6; ww = cw - 20; wh = ch - 11; }
+      else { wx = x + 7; wy = y + 7; ww = cw - 14; wh = ch - 12; }
 
       const lit = r() < (kind === 'industrial' ? 0.25 : 0.42);
       // frame
@@ -92,8 +92,8 @@ function makeFacade(kind, accentCss) {
         const litCol = warm ? '#ffd9a0' : accentCss;
         a.fillStyle = litCol; a.fillRect(wx, wy, ww, wh);
         e.fillStyle = litCol; e.fillRect(wx, wy, ww, wh);
-        // dim the emissive slightly for variety
-        e.fillStyle = `rgba(0,0,0,${r() * 0.4})`; e.fillRect(wx, wy, ww, wh);
+        // dim the emissive per-window for variety and to keep bloom in check
+        e.fillStyle = `rgba(0,0,0,${0.25 + r() * 0.45})`; e.fillRect(wx, wy, ww, wh);
       } else {
         // dark glass with sky gradient
         const g = a.createLinearGradient(0, wy, 0, wy + wh);
@@ -170,7 +170,7 @@ function concreteMat(tint = 0xffffff, rough = 0.85) {
   return m;
 }
 
-function facadeMat(fac, bays, floors, { rough = 0.5, metal = 0.25, ei = 0.62 } = {}) {
+function facadeMat(fac, bays, floors, { rough = 0.5, metal = 0.25, ei = 0.36 } = {}) {
   const key = `f:${fac.key}:${bays}:${floors}:${rough}:${metal}:${ei}`;
   let m = _matCache.get(key);
   if (!m) {
@@ -308,19 +308,21 @@ function foundation(size, accent) {
 function genHQ(g, w, fac, glass, accent, accent2, r, y0) {
   // Podium: 2 tall commercial floors.
   const podW = w * 0.86, podH = FLOOR * 2.4;
-  g.add(block(fac, podW, podH, podW, y0, { ei: 0.7 }));
+  g.add(block(fac, podW, podH, podW, y0, { ei: 0.4 }));
   parapet(g, podW, podW, y0 + podH);
   // Main tower with two setbacks (offset from center for asymmetry).
   const off = (r() - 0.5) * w * 0.14;
   let tw = w * 0.52, th = FLOOR * (5 + Math.floor(r() * 2)), ty = y0 + podH;
-  const t1 = block(glass, tw, th, tw, ty, { ei: 0.6 }); t1.position.x = off; g.add(t1);
+  const t1 = block(glass, tw, th, tw, ty, { ei: 0.35 }); t1.position.x = off; g.add(t1);
   parapet(g, tw, tw, ty + th, 0.1, 0.22, off, 0); ty += th;
   let tw2 = tw * 0.74, th2 = FLOOR * 3;
-  const t2 = block(glass, tw2, th2, tw2, ty, { ei: 0.6 }); t2.position.x = off; g.add(t2);
+  const t2 = block(glass, tw2, th2, tw2, ty, { ei: 0.35 }); t2.position.x = off; g.add(t2);
   ty += th2;
-  // Crown: accent-lit mechanical floor + spire.
-  const crown = box(tw2 * 0.9, 0.5, tw2 * 0.9, mat(0x22262e, { emissive: accent, ei: 0.9, metal: 0.5, rough: 0.35 }), ty);
+  // Crown: dark mechanical floor with a thin accent light band + spire.
+  const crown = box(tw2 * 0.92, 0.4, tw2 * 0.92, mat(0x22262e, { metal: 0.5, rough: 0.45 }), ty);
   crown.position.x = off; g.add(crown);
+  const bandHQ = box(tw2 * 0.94, 0.07, tw2 * 0.94, mat(accent, { emissive: accent, ei: 1.1, metal: 0.2 }), ty + 0.16);
+  bandHQ.position.x = off; g.add(bandHQ);
   const spire = cyl(0.02, 0.09, 2.6, mat(0x565c66, { metal: 0.7, rough: 0.3 }), ty + 0.5, 6);
   spire.position.x = off; g.add(spire);
   const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), mat(accent2, { emissive: accent2, ei: 2.0, metal: 0 }));
@@ -342,9 +344,9 @@ function genDataCenter(g, w, fac, accent, r, y0) {
   const ind = fac;
   // Two long server halls with shallow-pitched metal roofs.
   const hallW = w * 0.40, hallH = FLOOR * 1.7, hallD = w * 0.88;
-  const roofM = mat(0x8b9099, { metal: 0.6, rough: 0.45 });
+  const roofM = concreteMat(0x8a8f97, 0.7);
   for (const sx of [-1, 1]) {
-    const hall = block(ind, hallW, hallH, hallD, y0, { ei: 0.45, roofMat: roofM });
+    const hall = block(ind, hallW, hallH, hallD, y0, { ei: 0.28, roofMat: roofM });
     hall.position.x = sx * w * 0.235; g.add(hall);
     // roof vent row
     for (let i = 0; i < 4; i++) {
@@ -370,7 +372,7 @@ function genDataCenter(g, w, fac, accent, r, y0) {
     fan.position.copy(ch.position); fan.position.y = y0 + 0.54; fan.userData.spin = 6; g.add(fan);
   }
   // Small front office block.
-  const off = block(fac, w * 0.34, FLOOR * 1.2, w * 0.2, y0, { ei: 0.7 });
+  const off = block(fac, w * 0.34, FLOOR * 1.2, w * 0.2, y0, { ei: 0.4 });
   off.position.set(-w * 0.1, off.position.y, w * 0.36); g.add(off);
 }
 
@@ -391,7 +393,7 @@ function genPowerNode(g, w, fac, accent, r, y0) {
   const stackTop = cyl(w * 0.135, w * 0.125, 0.24, mat(0x30353e, { rough: 0.8 }), y0 + FLOOR * 3.4, 16);
   stackTop.position.set(w * 0.24, stackTop.position.y, w * 0.18); g.add(stackTop);
   // Turbine hall.
-  const hall = block(fac, w * 0.44, FLOOR * 1.3, w * 0.3, y0, { ei: 0.45 });
+  const hall = block(fac, w * 0.44, FLOOR * 1.3, w * 0.3, y0, { ei: 0.28 });
   hall.position.set(-w * 0.05, hall.position.y, w * 0.3); g.add(hall);
   // Transformer yard: small switchgear + insulators.
   const yard = { x: w * 0.26, z: -w * 0.26 };
@@ -410,19 +412,19 @@ function genPowerNode(g, w, fac, accent, r, y0) {
 function genExchange(g, w, fac, glass, accent, r, y0) {
   // Sleek curtain-wall tower with a sloped crown + low trading hall.
   const tw = w * 0.42, th = FLOOR * (6 + Math.floor(r() * 2));
-  const tower = block(glass, tw, th, tw, y0, { ei: 0.6, rough: 0.25, metal: 0.5 });
+  const tower = block(glass, tw, th, tw, y0, { ei: 0.35, rough: 0.25, metal: 0.5 });
   tower.position.set(-w * 0.14, tower.position.y, -w * 0.1); g.add(tower);
   // sloped glass crown
   const crown = new THREE.Mesh(
     new THREE.CylinderGeometry(0.02, tw * 0.62, FLOOR * 1.4, 4),
-    mat(0x2c3e58, { emissive: accent, ei: 0.35, metal: 0.6, rough: 0.25 }));
+    mat(0x232c3a, { emissive: accent, ei: 0.18, metal: 0.3, rough: 0.55 }));
   crown.rotation.y = Math.PI / 4;
   crown.position.set(-w * 0.14, y0 + th + FLOOR * 0.7, -w * 0.1); shadowed(crown); g.add(crown);
   // ticker band around the tower top
   const band = box(tw + 0.06, 0.28, tw + 0.06, mat(0x11151c, { emissive: accent, ei: 1.3, metal: 0.3 }), y0 + th - FLOOR * 1.2);
   band.position.set(-w * 0.14, band.position.y, -w * 0.1); g.add(band);
   // trading hall with arched glass roof
-  const hall = block(fac, w * 0.5, FLOOR * 1.5, w * 0.34, y0, { ei: 0.75 });
+  const hall = block(fac, w * 0.5, FLOOR * 1.5, w * 0.34, y0, { ei: 0.42 });
   hall.position.set(w * 0.2, hall.position.y, w * 0.24); g.add(hall);
   const arch = new THREE.Mesh(
     new THREE.CylinderGeometry(w * 0.17, w * 0.17, w * 0.48, 14, 1, false, 0, Math.PI),
@@ -435,9 +437,9 @@ function genExchange(g, w, fac, glass, accent, r, y0) {
 function genLab(g, w, fac, glass, accent, r, y0) {
   // L-shaped research block + corner observatory tower.
   const aH = FLOOR * 1.9;
-  const wingA = block(fac, w * 0.8, aH, w * 0.34, y0, { ei: 0.7 });
+  const wingA = block(fac, w * 0.8, aH, w * 0.34, y0, { ei: 0.4 });
   wingA.position.z = -w * 0.22; g.add(wingA);
-  const wingB = block(fac, w * 0.34, aH, w * 0.5, y0, { ei: 0.7 });
+  const wingB = block(fac, w * 0.34, aH, w * 0.5, y0, { ei: 0.4 });
   wingB.position.set(-w * 0.23, wingB.position.y, w * 0.18); g.add(wingB);
   parapet(g, w * 0.8, w * 0.34, y0 + aH, 0.1, 0.22, 0, -w * 0.22);
   // observatory tower + dome
@@ -446,7 +448,7 @@ function genLab(g, w, fac, glass, accent, r, y0) {
   tower.position.set(w * 0.24, tower.position.y, w * 0.24); g.add(tower);
   const dome = new THREE.Mesh(
     new THREE.SphereGeometry(tR * 0.95, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
-    mat(0xd7dbe2, { metal: 0.5, rough: 0.3 }));
+    mat(0x6e747d, { metal: 0.45, rough: 0.5 }));
   dome.position.set(w * 0.24, y0 + FLOOR * 2.6, w * 0.24); shadowed(dome); g.add(dome);
   const slit = box(0.14, tR * 0.9, tR * 1.02, mat(0x11151c, { emissive: accent, ei: 0.9 }), y0 + FLOOR * 2.6);
   slit.position.set(w * 0.24, y0 + FLOOR * 2.6 + tR * 0.32, w * 0.24); g.add(slit);
@@ -496,13 +498,13 @@ function genSecurityHub(g, w, fac, accent, r, y0) {
     wall.position.x = x; wall.position.z = z; g.add(wall);
   }
   // barracks annex
-  const annex = block(fac, w * 0.3, FLOOR * 1.1, w * 0.2, y0, { ei: 0.5 });
+  const annex = block(fac, w * 0.3, FLOOR * 1.1, w * 0.2, y0, { ei: 0.3 });
   annex.position.set(0, annex.position.y, 0.02 - w * 0.18); g.add(annex);
 }
 
 function genBroadcast(g, w, fac, accent, r, y0) {
   // Studio building + broadcast mast with dishes.
-  const studio = block(fac, w * 0.55, FLOOR * 1.7, w * 0.42, y0, { ei: 0.75 });
+  const studio = block(fac, w * 0.55, FLOOR * 1.7, w * 0.42, y0, { ei: 0.42 });
   studio.position.set(-w * 0.12, studio.position.y, w * 0.14); g.add(studio);
   parapet(g, w * 0.55, w * 0.42, y0 + FLOOR * 1.7);
   roofClutter(g, r, w * 0.45, w * 0.32, y0 + FLOOR * 1.7, 2);
@@ -541,7 +543,7 @@ function genPolicyOffice(g, w, fac, accent, r, y0) {
   }
   const plinthTop = y0 + 3 * 0.14;
   // main block behind the portico
-  const main = block(fac, w * 0.66, FLOOR * 2.2, w * 0.4, plinthTop, { ei: 0.55 });
+  const main = block(fac, w * 0.66, FLOOR * 2.2, w * 0.4, plinthTop, { ei: 0.32 });
   main.position.z = -w * 0.06; g.add(main);
   // colonnade
   const colH = FLOOR * 2.0;
@@ -575,7 +577,7 @@ function genHabitat(g, w, fac, accent, r, y0) {
   const towers = [];
   heights.forEach((fl, i) => {
     const tw = w * (0.24 + r() * 0.05), th = FLOOR * fl;
-    const t = block(fac, tw, th, tw, y0, { ei: 0.8 });
+    const t = block(fac, tw, th, tw, y0, { ei: 0.45 });
     t.position.set(pos[i][0], t.position.y, pos[i][1]); g.add(t); towers.push({ t, tw, th, x: pos[i][0], z: pos[i][1] });
     // roof garden or clutter
     if (r() < 0.6) {
@@ -632,11 +634,11 @@ function genDefenseNode(g, w, fac, accent, r, y0) {
 
 function genGenericOffice(g, w, fac, accent, r, y0) {
   const h = FLOOR * (2 + Math.floor(r() * 2));
-  const main = block(fac, w * 0.62, h, w * 0.5, y0, { ei: 0.65 });
+  const main = block(fac, w * 0.62, h, w * 0.5, y0, { ei: 0.38 });
   main.position.set(-w * 0.05, main.position.y, 0); g.add(main);
   parapet(g, w * 0.62, w * 0.5, y0 + h);
   roofClutter(g, r, w * 0.5, w * 0.4, y0 + h, 2);
-  const annex = block(fac, w * 0.26, FLOOR * 1.2, w * 0.3, y0, { ei: 0.65 });
+  const annex = block(fac, w * 0.26, FLOOR * 1.2, w * 0.3, y0, { ei: 0.38 });
   annex.position.set(w * 0.3, annex.position.y, w * 0.12); g.add(annex);
   antenna(g, w * 0.3, y0 + FLOOR * 1.2, w * 0.12, 1.1, accent);
 }
