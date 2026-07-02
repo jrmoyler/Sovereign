@@ -149,6 +149,9 @@ body {
 #faction-panel { position: fixed; top: 10px; left: 10px; width: 236px; padding: 12px 14px; z-index: 12; }
 #faction-panel .fp-name { font-size: 15px; font-weight: 700; color: var(--faction); letter-spacing: 0.06em; }
 #faction-panel .fp-role { font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 8px; }
+#faction-panel .fp-collapse { display: none; position: absolute; top: 8px; right: 10px; color: var(--ink-faint); font-size: 14px; cursor: pointer; padding: 2px 6px; }
+body.touch #faction-panel .fp-collapse { display: block; }
+#faction-panel.collapsed .stack-list, #faction-panel.collapsed .hdr { display: none; }
 .stack-list { margin-top: 6px; display: flex; flex-direction: column; gap: 3px; }
 .stack-row { display: flex; align-items: center; gap: 7px; font-size: 10px; }
 .stack-dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--edge-strong); flex: none; }
@@ -201,9 +204,10 @@ body {
   display: grid; place-items: center; font-size: 15px; background: rgba(0,0,0,0.3); }
 .queue-item > i { position: absolute; bottom: 0; left: 0; width: 100%; background: var(--faction); opacity: 0.35; }
 
-/* Alerts (right-center feed) */
+/* Alerts (right-center feed) — display only, never intercept the pointer */
 #alerts { position: fixed; right: 10px; top: 50%; transform: translateY(-50%); z-index: 13;
-  display: flex; flex-direction: column; gap: 6px; width: 260px; align-items: flex-end; }
+  display: flex; flex-direction: column; gap: 6px; width: 260px; align-items: flex-end;
+  pointer-events: none !important; }
 .alert { padding: 8px 12px; border-radius: 8px; font-size: 11px; width: 100%;
   background: rgba(14,18,30,0.9); border: 1px solid var(--edge); border-left: 3px solid var(--accent);
   animation: slidein 0.3s ease; box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
@@ -263,16 +267,100 @@ body {
 
 /* Floating world text (resource gains, damage) is drawn on canvas via Effects. */
 
-/* Toast (center bottom-ish, transient big events) */
-#toast { position: fixed; top: 96px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+/* Toast (center bottom-ish, transient big events) — display only */
+#toast { position: fixed; top: 96px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; flex-direction: column; gap: 6px; align-items: center;
+  pointer-events: none !important; }
 .toast-item { padding: 10px 22px; border-radius: 24px; font-size: 13px; letter-spacing: 0.06em; font-weight: 600;
   background: rgba(10,14,24,0.92); border: 1px solid var(--edge-strong); animation: toastin 0.4s ease; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
 @keyframes toastin { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
 
-/* Mobile controls */
-#mobile-ctl { position: fixed; left: 10px; bottom: 132px; z-index: 12; display: none; flex-direction: column; gap: 8px; }
-body.touch #mobile-ctl { display: flex; }
+/* Mobile controls — compact 2-column grid so it never climbs into the HUD */
+#mobile-ctl { position: fixed; left: 10px; bottom: 132px; z-index: 12; display: none;
+  grid-template-columns: repeat(2, auto); gap: 8px; }
+body.touch #mobile-ctl { display: grid; }
 body.touch #ctrl-col { top: 62px; }
+
+/* Build-placement cancel (floating, critical on touch) */
+#build-cancel { position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%); z-index: 14;
+  font-size: 13px; padding: 10px 18px; border-color: var(--bad); color: var(--bad); }
+
+/* ============================================================================
+   RESPONSIVE / MOBILE LAYOUT
+   ============================================================================ */
+
+/* Bigger hit targets on touch devices */
+body.touch .cmd-btn { width: 64px; height: 56px; }
+body.touch .icon-btn { width: 48px; height: 48px; font-size: 20px; }
+body.touch .btn { padding: 11px 16px; font-size: 13px; }
+body.touch .modal-x { width: 44px; height: 44px; }
+
+@media (max-width: 900px) {
+  /* stack the top HUD: resource bar becomes a full-width scroll strip */
+  #resbar { left: 8px; right: 8px; top: 8px; overflow-x: auto; flex-wrap: nowrap;
+    justify-content: flex-start; scrollbar-width: none; }
+  #resbar::-webkit-scrollbar { display: none; }
+  .res { min-width: 64px; padding: 4px 6px; flex: none; }
+  .res .lbl { display: none; }
+  .res .amt { font-size: 12px; }
+
+  #faction-panel { top: 58px; left: 8px; width: 172px; padding: 8px 10px; }
+  #faction-panel .fp-name { font-size: 12px; }
+  .stack-row { font-size: 9px; gap: 5px; }
+
+  #ctrl-col { top: 58px; right: 8px; }
+  body.touch #ctrl-col { top: 58px; }
+
+  #cmd-panel { left: 8px; right: 8px; bottom: 8px; transform: none; width: auto; min-height: 96px; max-height: 172px; padding: 8px; gap: 8px; }
+  #cmd-portrait { width: 70px; padding-right: 6px; }
+  #cmd-portrait .pcount { font-size: 16px; }
+  #cmd-body { overflow: hidden; }
+  #cmd-actions { overflow-y: auto; max-height: 116px; }
+
+  #minimap-wrap { right: 8px; bottom: 128px; padding: 5px; }
+  #minimap { width: 110px; height: 110px; }
+  #minimap-wrap .hdr { display: none; }
+  #mobile-ctl { bottom: 128px; left: 8px; }
+
+  #alerts { width: 190px; right: 8px; top: 38%; }
+  .alert { font-size: 10px; padding: 6px 9px; }
+  #toast { top: 64px; }
+  .toast-item { font-size: 11px; padding: 8px 16px; }
+  #build-cancel { bottom: 128px; }
+
+  /* menus — let the whole screen scroll; keep cards readable */
+  .menu-screen { justify-content: flex-start; overflow-y: auto; padding: 28px 0 24px; }
+  .faction-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px;
+    max-height: none; overflow-y: visible; grid-auto-rows: minmax(96px, auto); flex-shrink: 0; }
+  .faction-card { padding: 10px; }
+  .fc-name { font-size: 14px; }
+  .fc-tag { font-size: 10px; min-height: 24px; }
+  .faction-detail { flex-direction: column; gap: 4px; margin-top: 10px; flex-shrink: 0; }
+  .menu-actions { flex-wrap: wrap; justify-content: center; flex-shrink: 0; }
+  .big-btn { font-size: 13px; padding: 10px 22px; }
+
+  .modal { width: 96vw; max-height: 92vh; }
+  .modal-body { padding: 12px; }
+  .tech-node { width: 140px; }
+  #coach { max-width: 240px; }
+}
+
+@media (max-width: 560px) {
+  #faction-panel { width: 148px; }
+  .stack-prog { display: none; }
+  #cmd-actions { grid-template-columns: repeat(auto-fill, 56px); }
+  body.touch .cmd-btn { width: 56px; height: 52px; }
+  .cmd-btn .cl { font-size: 7px; }
+  #minimap { width: 92px; height: 92px; }
+  .faction-grid { grid-template-columns: 1fr 1fr; }
+  .help-cols { grid-template-columns: 1fr; }
+}
+
+/* Short landscape phones: tuck the faction panel away to keep the field visible */
+@media (max-height: 460px) {
+  #faction-panel { display: none; }
+  #minimap-wrap { bottom: 8px; right: 8px; }
+  #cmd-panel { left: 8px; right: 130px; }
+}
 
 .hidden { display: none !important; }
 .scroll::-webkit-scrollbar { width: 8px; height: 8px; }

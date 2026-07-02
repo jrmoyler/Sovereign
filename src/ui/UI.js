@@ -60,7 +60,13 @@ export class UI {
     // faction / sovereign panel
     this.$fpanel = el('div', 'panel'); this.$fpanel.id = 'faction-panel';
     this.$fpanel.innerHTML = `<div class="fp-name">${p.faction.name}</div><div class="fp-role">${p.faction.role}</div>
+      <div class="fp-collapse" title="Collapse">▾</div>
       <div class="hdr">Sovereign Intelligence Stack</div><div class="stack-list"></div>`;
+    const collapse = this.$fpanel.querySelector('.fp-collapse');
+    collapse.onclick = () => {
+      const c = this.$fpanel.classList.toggle('collapsed');
+      collapse.textContent = c ? '▸' : '▾';
+    };
     this.$stackList = this.$fpanel.querySelector('.stack-list');
     this.stackRows = SOVEREIGN_STACK.map((s, i) => {
       const row = el('div', 'stack-row');
@@ -108,10 +114,25 @@ export class UI {
 
     // mobile controls
     this.$mobile = el('div', ''); this.$mobile.id = 'mobile-ctl';
-    for (const [g, fn] of [['➕', () => this.renderer.rig.zoomBy(-10)], ['➖', () => this.renderer.rig.zoomBy(10)], ['↻', () => this.renderer.rig.rotateBy(0.4, 0)]]) {
-      const b = el('div', 'icon-btn', g); b.onclick = fn; this.$mobile.appendChild(b);
+    for (const [g, title, fn] of [
+      ['➕', 'Zoom in', () => this.renderer.rig.zoomBy(-10)],
+      ['➖', 'Zoom out', () => this.renderer.rig.zoomBy(10)],
+      ['↻', 'Rotate', () => this.renderer.rig.rotateBy(0.4, 0)],
+      ['✕', 'Clear selection', () => { this.cancelBuild(); this.clearSelection(); }],
+      ['⛶', 'Fullscreen', () => {
+        if (document.fullscreenElement) document.exitFullscreen?.();
+        else document.documentElement.requestFullscreen?.();
+      }],
+    ]) {
+      const b = el('div', 'icon-btn', g); b.title = title; b.onclick = fn; this.$mobile.appendChild(b);
     }
     this.root.appendChild(this.$mobile);
+
+    // floating cancel button for build-placement mode (essential on touch)
+    this.$buildCancel = el('button', 'btn', '✕ Cancel placement');
+    this.$buildCancel.id = 'build-cancel'; this.$buildCancel.style.display = 'none';
+    this.$buildCancel.onclick = () => this.cancelBuild();
+    this.root.appendChild(this.$buildCancel);
 
     this.setSelection({ units: [], building: 0 });
   }
@@ -178,7 +199,9 @@ export class UI {
 
     // nothing selected
     this.$pname.textContent = '—'; this.$pcount.textContent = ''; this.$php.style.width = '0%';
-    this.$cmdTitle.innerHTML = 'Select a unit or building. <b>Left-drag</b> to box-select, <b>right-click</b> to command.';
+    this.$cmdTitle.innerHTML = document.body.classList.contains('touch')
+      ? 'Select a unit or building. <b>Tap</b> to select, <b>drag</b> to box-select, then <b>tap</b> a target to command.'
+      : 'Select a unit or building. <b>Left-drag</b> to box-select, <b>right-click</b> to command.';
   }
 
   _cmdBtn(icon, label, key, onClick, enabledFn, tip) {
@@ -213,8 +236,17 @@ export class UI {
   }
 
   // ---- build placement -----------------------------------------------------
-  startBuild(bid) { this.buildMode = bid; this.toast(`Placing ${BUILDINGS[bid].name} — click to build, right-click to cancel`); if (this.hooks.onBuildMode) this.hooks.onBuildMode(bid); }
-  cancelBuild() { this.buildMode = null; if (this.hooks.onBuildMode) this.hooks.onBuildMode(null); }
+  startBuild(bid) {
+    this.buildMode = bid;
+    this.toast(`Placing ${BUILDINGS[bid].name} — tap/click to build`);
+    this.$buildCancel.style.display = 'block';
+    if (this.hooks.onBuildMode) this.hooks.onBuildMode(bid);
+  }
+  cancelBuild() {
+    this.buildMode = null;
+    this.$buildCancel.style.display = 'none';
+    if (this.hooks.onBuildMode) this.hooks.onBuildMode(null);
+  }
 
   // ---- per-frame update ----------------------------------------------------
   update(dt) {
@@ -395,7 +427,12 @@ build <b>Sovereign Intelligence</b> — superintelligence — before they do. Gr
     <h3>Selection & Orders</h3><ul>
       <li><b>Left-click</b> Select unit/building</li><li><b>Left-drag</b> Box-select units</li>
       <li><b>Right-click</b> Move / Attack / Gather</li><li><b>Shift-click</b> Add to selection</li>
-      <li><b>Right-click (building)</b> Set rally point</li></ul>
+      <li><b>Right-click (building)</b> Set rally point</li>
+      <li><b>Ctrl + 1–9</b> Assign control group</li><li><b>1–9</b> Select control group</li></ul>
+    <h3>Touch Controls</h3><ul>
+      <li><b>Tap</b> Select unit / building</li><li><b>Drag</b> Box-select units</li>
+      <li><b>Tap ground/enemy</b> Command selection</li><li><b>Two fingers</b> Pan · pinch zoom · twist rotate</li>
+      <li><b>✕ button</b> Clear selection</li></ul>
   </div>
   <div>
     <h3>Economy (8 resources)</h3><ul>

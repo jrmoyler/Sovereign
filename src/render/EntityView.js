@@ -76,7 +76,7 @@ export class EntityView {
   }
 
   _initBuilding(e, fc) {
-    this.mesh = buildingMesh(e.def, fc.color, fc.color2);
+    this.mesh = buildingMesh(e.def, fc.color, fc.color2, e.id);
     this.group.add(this.mesh);
     this.spinners = [];
     this.mesh.traverse(o => { if (o.userData && (o.userData.spin || o.userData.pulse || o.userData.turret)) this.spinners.push(o); });
@@ -158,6 +158,14 @@ export class EntityView {
   }
 
   dispose() {
-    this.group.traverse(o => { o.geometry?.dispose?.(); if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose?.()); } });
+    this.group.traverse(o => {
+      o.geometry?.dispose?.();
+      if (o.material) {
+        for (const m of (Array.isArray(o.material) ? o.material : [o.material])) {
+          if (m.userData?.shared) continue; // cached building materials outlive views
+          m.dispose?.();
+        }
+      }
+    });
   }
 }

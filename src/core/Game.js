@@ -15,6 +15,7 @@ import { doAction, canDoAction } from './Actions.js';
 import { updateAI } from '../ai/RivalAI.js';
 import { UNITS } from '../data/units.js';
 import { BUILDINGS } from '../data/buildings.js';
+import { TECHS } from '../data/tech.js';
 import { START_UNITS } from '../data/balance.js';
 import { makeRng, canAfford, spend, dist, dist2, clamp } from './util.js';
 
@@ -100,8 +101,10 @@ export class Game {
   }
 
   _decayActionCooldowns(dt) {
-    for (const p of this.players)
+    for (const p of this.players) {
       for (const k in p.actionCd) if (p.actionCd[k] > 0) p.actionCd[k] = Math.max(0, p.actionCd[k] - dt);
+      p.updateTempMods(dt);
+    }
   }
 
   // interaction reach to a building = footprint half-extent + a small margin
@@ -210,8 +213,24 @@ export class Game {
       b.state = 'ready'; b.hp = b.maxHp;
       this.emit({ type: 'build_complete', id: b.id, owner: b.owner });
       if (p.isHuman) this.alert(p, 'good', 'Construction Complete', `${b.def.name} online.`);
-      u.buildId = 0; u.state = 'idle'; this.autoGather(u);
+      u.buildId = 0; u.state = 'idle';
+      // roll straight onto the nearest unattended construction site
+      const next = this._nearestUnattendedSite(u);
+      if (next) { u.buildId = next.id; u.state = 'build'; }
+      else this.autoGather(u);
     }
+  }
+
+  _nearestUnattendedSite(u) {
+    const attended = new Set();
+    for (const o of this.units) if (o.state === 'build' && o.buildId) attended.add(o.buildId);
+    let best = null, bd = 45 * 45;
+    for (const b of this.buildings) {
+      if (b.owner !== u.owner || b.state !== 'construct' || attended.has(b.id)) continue;
+      const d = dist2(u.x, u.z, b.x, b.z);
+      if (d < bd) { bd = d; best = b; }
+    }
+    return best;
   }
 
   _node(id) { return this.world.nodes.find(n => n.id === id); }
@@ -329,14 +348,17 @@ export class Game {
     this.emit({ type: 'build_start', id: b.id, owner: ownerIndex });
     return true;
   }
+  // Prefer workers that aren't already constructing something — stealing an
+  // active builder would leave its site abandoned forever.
   _nearestBuilder(owner, x, z) {
-    let best = null, bd = Infinity;
+    let best = null, bd = Infinity, bestBusy = null, bdBusy = Infinity;
     for (const u of this.units) {
       if (u.owner !== owner || !u.def.canBuild || u.state === 'dead') continue;
       const d = dist2(u.x, u.z, x, z);
-      if (d < bd) { bd = d; best = u; }
+      if (u.state === 'build') { if (d < bdBusy) { bdBusy = d; bestBusy = u; } }
+      else if (d < bd) { bd = d; best = u; }
     }
-    return best;
+    return best || bestBusy;
   }
 
   // queue a unit at a building
@@ -350,8 +372,7 @@ export class Game {
     if (def.requiresTech && !p.researched.has(def.requiresTech) && !p.unlocked.has(defId)) {
       this.alert(p, 'warn', 'Locked', `${def.name} requires research.`); return false;
     }
-    if (def.faction && def.faction !== p.factionId) return false;
-    if (p.supplyUsed + (def.supply || 1) > p.supplyCap + this._queuedSupply(p)) {
+    if (p.supplyUsed + this._queuedSupply(p) + (def.supply || 1) > p.supplyCap) {
       this.alert(p, 'warn', 'Supply Capped', 'Build a Security Hub or Habitat to raise supply.'); return false;
     }
     if (!canAfford(p.res, def.cost)) { this.alert(p, 'warn', 'Insufficient Resources', `Cannot afford ${def.name}.`); return false; }
@@ -359,7 +380,15 @@ export class Game {
     b.queue.push({ defId, progress: 0, time: def.buildTime });
     return true;
   }
-  _queuedSupply() { return 0; }
+  // total supply already committed to production queues for a player
+  _queuedSupply(p) {
+    let s = 0;
+    for (const b of this.buildings) {
+      if (b.owner !== p.index) continue;
+      for (const item of b.queue) s += UNITS[item.defId].supply || 1;
+    }
+    return s;
+  }
 
   commandSetRally(buildingId, x, z) {
     const b = this.entity(buildingId);
@@ -441,6 +470,4 @@ export class Game {
   }
 }
 
-// tiny helper: read a tech cost without importing the whole module at top twice
-import { TECHS } from '../data/tech.js';
 function TECHS_COST(id) { return TECHS[id]?.cost || {}; }

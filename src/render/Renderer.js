@@ -29,7 +29,9 @@ export class GameRenderer {
     const w = container.clientWidth, h = container.clientHeight;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio = this.renderer.setPixelRatio.bind(this.renderer);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    // cap pixel ratio harder on touch devices — mobile GPUs pay dearly for it
+    const isTouch = 'ontouchstart' in window;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, isTouch ? 1.5 : 1.75));
     this.renderer.setSize(w, h);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -74,7 +76,7 @@ export class GameRenderer {
     window.removeEventListener('resize', this._onResize);
     for (const v of this.views.values()) v.dispose();
     this.views.clear();
-    this.scene.traverse(o => { o.geometry?.dispose?.(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose?.()); });
+    this.scene.traverse(o => { o.geometry?.dispose?.(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (!m.userData?.shared) m.dispose?.(); }); });
     this.renderer.dispose();
     if (this.renderer.domElement.parentNode) this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
   }
@@ -85,7 +87,8 @@ export class GameRenderer {
     const sun = new THREE.DirectionalLight(0xcfe0ff, 1.7);
     sun.position.set(60, 90, 40);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    const shadowRes = ('ontouchstart' in window) ? 1024 : 2048;
+    sun.shadow.mapSize.set(shadowRes, shadowRes);
     const d = 90; const c = sun.shadow.camera;
     c.left = -d; c.right = d; c.top = d; c.bottom = -d; c.near = 1; c.far = 300;
     sun.shadow.bias = -0.0004;
@@ -196,7 +199,7 @@ export class GameRenderer {
     const hit = this.raycaster.intersectObject(this.ground, false)[0];
     return hit ? { x: hit.point.x, z: hit.point.z } : null;
   }
-  pickEntity(clientX, clientY) {
+  pickEntity(clientX, clientY, pxRadius = 22) {
     this._setNdc(clientX, clientY);
     this.raycaster.setFromCamera(this._ndc, this.camera);
     const hits = this.raycaster.intersectObjects(Array.from(this.views.values()).map(v => v.group), true);
@@ -204,7 +207,21 @@ export class GameRenderer {
       let o = hit.object;
       while (o) { if (o.userData && o.userData.entityId) return o.userData.entityId; o = o.parent; }
     }
-    return 0;
+    // Forgiving fallback (essential for skinned meshes + touch): nearest unit
+    // by screen-space distance within a small pixel radius.
+    const r = this.renderer.domElement.getBoundingClientRect();
+    let best = 0, bd = pxRadius * pxRadius;
+    for (const v of this.views.values()) {
+      const e = v.e;
+      if (e.kind !== 'unit' || e.state === 'dead' || !e.selectable) continue;
+      this._proj.set(v.group.position.x, 1, v.group.position.z).project(this.camera);
+      if (this._proj.z > 1) continue;
+      const sx = (this._proj.x * 0.5 + 0.5) * r.width + r.left;
+      const sy = (-this._proj.y * 0.5 + 0.5) * r.height + r.top;
+      const d = (sx - clientX) ** 2 + (sy - clientY) ** 2;
+      if (d < bd) { bd = d; best = e.id; }
+    }
+    return best;
   }
   pickNode(clientX, clientY) {
     this._setNdc(clientX, clientY);
