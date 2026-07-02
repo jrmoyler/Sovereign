@@ -274,6 +274,84 @@ body {
 body.touch #mobile-ctl { display: flex; }
 body.touch #ctrl-col { top: 62px; }
 
+/* Build-placement cancel (floating, critical on touch) */
+#build-cancel { position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%); z-index: 14;
+  font-size: 13px; padding: 10px 18px; border-color: var(--bad); color: var(--bad); }
+
+/* ============================================================================
+   RESPONSIVE / MOBILE LAYOUT
+   ============================================================================ */
+
+/* Bigger hit targets on touch devices */
+body.touch .cmd-btn { width: 64px; height: 56px; }
+body.touch .icon-btn { width: 48px; height: 48px; font-size: 20px; }
+body.touch .btn { padding: 11px 16px; font-size: 13px; }
+body.touch .modal-x { width: 44px; height: 44px; }
+
+@media (max-width: 900px) {
+  /* stack the top HUD: resource bar becomes a full-width scroll strip */
+  #resbar { left: 8px; right: 8px; top: 8px; overflow-x: auto; flex-wrap: nowrap;
+    justify-content: flex-start; scrollbar-width: none; }
+  #resbar::-webkit-scrollbar { display: none; }
+  .res { min-width: 64px; padding: 4px 6px; flex: none; }
+  .res .lbl { display: none; }
+  .res .amt { font-size: 12px; }
+
+  #faction-panel { top: 58px; left: 8px; width: 172px; padding: 8px 10px; }
+  #faction-panel .fp-name { font-size: 12px; }
+  .stack-row { font-size: 9px; gap: 5px; }
+
+  #ctrl-col { top: 58px; right: 8px; }
+  body.touch #ctrl-col { top: 58px; }
+
+  #cmd-panel { left: 8px; right: 8px; bottom: 8px; transform: none; width: auto; min-height: 96px; padding: 8px; gap: 8px; }
+  #cmd-portrait { width: 70px; padding-right: 6px; }
+  #cmd-portrait .pcount { font-size: 16px; }
+
+  #minimap-wrap { right: 8px; bottom: 128px; padding: 5px; }
+  #minimap { width: 110px; height: 110px; }
+  #minimap-wrap .hdr { display: none; }
+  #mobile-ctl { bottom: 128px; left: 8px; }
+
+  #alerts { width: 190px; right: 8px; top: 38%; }
+  .alert { font-size: 10px; padding: 6px 9px; }
+  #toast { top: 64px; }
+  .toast-item { font-size: 11px; padding: 8px 16px; }
+  #build-cancel { bottom: 128px; }
+
+  /* menus */
+  .faction-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; max-height: 48vh; }
+  .faction-card { padding: 10px; }
+  .fc-name { font-size: 14px; }
+  .fc-tag { font-size: 10px; min-height: 24px; }
+  .faction-detail { flex-direction: column; gap: 4px; margin-top: 10px; max-height: 20vh; overflow-y: auto; }
+  .menu-actions { flex-wrap: wrap; justify-content: center; }
+  .big-btn { font-size: 13px; padding: 10px 22px; }
+
+  .modal { width: 96vw; max-height: 92vh; }
+  .modal-body { padding: 12px; }
+  .tech-node { width: 140px; }
+  #coach { max-width: 240px; }
+}
+
+@media (max-width: 560px) {
+  #faction-panel { width: 148px; }
+  .stack-prog { display: none; }
+  #cmd-actions { grid-template-columns: repeat(auto-fill, 56px); }
+  body.touch .cmd-btn { width: 56px; height: 52px; }
+  .cmd-btn .cl { font-size: 7px; }
+  #minimap { width: 92px; height: 92px; }
+  .faction-grid { grid-template-columns: 1fr 1fr; }
+  .help-cols { grid-template-columns: 1fr; }
+}
+
+/* Short landscape phones: tuck the faction panel away to keep the field visible */
+@media (max-height: 460px) {
+  #faction-panel { display: none; }
+  #minimap-wrap { bottom: 8px; right: 8px; }
+  #cmd-panel { left: 8px; right: 130px; }
+}
+
 .hidden { display: none !important; }
 .scroll::-webkit-scrollbar { width: 8px; height: 8px; }
 .scroll::-webkit-scrollbar-thumb { background: rgba(120,160,220,0.2); border-radius: 4px; }

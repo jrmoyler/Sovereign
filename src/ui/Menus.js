@@ -22,7 +22,7 @@ export class Menus {
     const grid = el('div', 'faction-grid');
     const detail = el('div', 'faction-detail');
 
-    let selected = FACTIONS.find(f => f.playable);
+    let selected = FACTIONS.find(f => f.playable) || FACTIONS[0];
     const cards = {};
     for (const f of FACTIONS) {
       const card = el('div', 'faction-card' + (f.playable ? '' : ' locked'));
@@ -120,8 +120,11 @@ function describeBonus(f) {
   const m = f.mods;
   const label = {
     researchSpeed: 'research', capitalRate: 'capital', trustRate: 'trust', defenseMul: 'defense',
-    unitDmgMul: 'unit damage', unitHpMul: 'unit HP', robotTrain: 'robot production', influence: 'influence',
+    unitDmgMul: 'unit damage', unitHpMul: 'unit HP', robotTrain: 'unit production', influence: 'influence',
     marketOps: 'market ops', detectSabotage: 'sabotage detection', agentCoord: 'agent coordination',
+    talentGather: 'talent', dataGather: 'data', computeGather: 'compute', energyGather: 'energy',
+    infraRate: 'infrastructure', govRate: 'governance', buildSpeed: 'build speed', unitSpeed: 'unit speed',
+    adoption: 'adoption', counterIntel: 'counterintel', sabotageMul: 'sabotage strength', buyDiscount: '',
   };
   for (const k in m) if (label[k] && m[k] > 1) parts.push(`+${Math.round((m[k] - 1) * 100)}% ${label[k]}`);
   return parts.slice(0, 3).join(', ') || 'Balanced';
@@ -129,9 +132,7 @@ function describeBonus(f) {
 
 function pickRivals(playerId, n) {
   const pool = FACTIONS.filter(f => f.id !== playerId);
-  // shuffle deterministically-ish (Math.random ok for menu)
+  // shuffle (Math.random is fine for the menu)
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[pool[i], pool[j]] = [pool[j], pool[i]]; }
-  // bias toward the other four fully-playable factions first for a marquee match
-  pool.sort((a, b) => (b.playable === true) - (a.playable === true));
   return pool.slice(0, n).map(f => f.id);
 }

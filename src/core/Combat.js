@@ -51,8 +51,8 @@ export function killEntity(game, e, byOwner) {
     game.world.clearOccupied(e.tx, e.tz, e.size);
     e.dieTimer = 0.6; e.selectable = false;
     game.emit({ type: 'death', kind: 'building', x: e.x, z: e.z, owner: e.owner, id: e.id, big: true });
-    // losing your HQ can be fatal
-    if (e.def.isHQ) game.checkElimination(e.owner);
+    // a player with no buildings left is eliminated (check on every loss)
+    game.checkElimination(e.owner);
   }
 }
 
@@ -65,12 +65,16 @@ function attack(game, attacker, target) {
   game.emit({ type: 'attack', ranged: !!def.ranged, x: attacker.x, z: attacker.z,
     tx: target.x, tz: target.z, owner: attacker.owner, dmg });
   const hit = () => {
+    dealDamage(game, target, dmg, attacker.owner);
     if (def.splash) {
+      // splash also hits other enemies (units and buildings) around the target
+      const r2 = def.splash * def.splash;
       for (const u of game.units)
-        if (u.state !== 'dead' && u.owner !== attacker.owner && dist2(u.x, u.z, target.x, target.z) < def.splash * def.splash)
-          dealDamage(game, u, dmg, attacker.owner);
-    } else {
-      dealDamage(game, target, dmg, attacker.owner);
+        if (u !== target && u.state !== 'dead' && hostile(game, u, attacker.owner) && dist2(u.x, u.z, target.x, target.z) < r2)
+          dealDamage(game, u, dmg * 0.6, attacker.owner);
+      for (const b of game.buildings)
+        if (b !== target && b.state !== 'dead' && hostile(game, b, attacker.owner) && dist2(b.x, b.z, target.x, target.z) < r2)
+          dealDamage(game, b, dmg * 0.6, attacker.owner);
     }
     game.emit({ type: 'impact', x: target.x, z: target.z, ranged: !!def.ranged });
   };
@@ -84,6 +88,15 @@ export function updateCombat(game, dt) {
     if (u.state === 'dead') continue;
     if (u.cd > 0) u.cd -= dt;
     const def = u.def;
+
+    // healers repair nearby damaged friendlies
+    if (def.heals) {
+      for (const o of game.units) {
+        if (o === u || o.state === 'dead' || o.owner !== u.owner || o.hp >= o.maxHp) continue;
+        if (dist2(u.x, u.z, o.x, o.z) < 100) o.hp = Math.min(o.maxHp, o.hp + def.heals * dt);
+      }
+    }
+
     if (!def.dmg || def.class === 'worker' || def.class === 'support') {
       // non-combatants only retaliate if explicitly attacking a target
       if (u.state === 'attack' && u.targetId) tryAttackTarget(game, u);

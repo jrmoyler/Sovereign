@@ -25,6 +25,11 @@ export class Input {
     this.rotating = false;
     this.ghost = null;
     this.attackMoveArmed = false;
+    this.groups = {};        // control groups: digit -> [unit ids]
+
+    // touch state
+    this._touchPointers = new Set();  // active touch pointerIds
+    this._touchStart = null;          // { x, y, id } for tap detection
 
     ui.hooks.onBuildMode = (bid) => this._setGhost(bid);
     this._bind();
@@ -70,6 +75,7 @@ export class Input {
   // ---- pointer -------------------------------------------------------------
   _down(e) {
     if (!this.enabled || this.paused) return;
+    if (e.pointerType === 'touch') { this._touchDown(e); return; }
     if (e.button === 2) { this._rightClick(e); return; }
     if (e.button === 1) { this.rotating = true; this._lastRot = { x: e.clientX, y: e.clientY }; return; }
     // left button
@@ -91,6 +97,7 @@ export class Input {
   }
 
   _move(e) {
+    if (e.pointerType === 'touch') { this._touchMove(e); return; }
     if (this.rotating && this._lastRot) {
       const dx = e.clientX - this._lastRot.x, dy = e.clientY - this._lastRot.y;
       this.rig.rotateBy(-dx * CAMERA.ROT_SPEED, dy * CAMERA.ROT_SPEED * 0.6);
@@ -105,19 +112,24 @@ export class Input {
   }
 
   _up(e) {
+    if (e.pointerType === 'touch') { this._touchUp(e); return; }
     if (e.button === 1) { this.rotating = false; return; }
     if (this.drag) {
       const d = this.drag; this.drag = null;
       this.ui.$marquee.style.display = 'none';
       const moved = Math.abs(d.x1 - d.x0) + Math.abs(d.y1 - d.y0);
       if (moved < 6) { if (!d.shift) this.ui.clearSelection(); return; }
-      const r = this.canvas.getBoundingClientRect();
-      const toNdc = (x, y) => [((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1];
-      const [nx0, ny0] = toNdc(d.x0, d.y0), [nx1, ny1] = toNdc(d.x1, d.y1);
-      const ids = this.renderer.unitsInRect(nx0, ny0, nx1, ny1, this.me);
-      if (ids.length) { this.audio?.play('select'); this.ui.selectUnits(d.shift ? [...new Set([...this.ui.sel.units, ...ids])] : ids); }
-      else if (!d.shift) this.ui.clearSelection();
+      this._marqueeSelect(d);
     }
+  }
+
+  _marqueeSelect(d) {
+    const r = this.canvas.getBoundingClientRect();
+    const toNdc = (x, y) => [((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1];
+    const [nx0, ny0] = toNdc(d.x0, d.y0), [nx1, ny1] = toNdc(d.x1, d.y1);
+    const ids = this.renderer.unitsInRect(nx0, ny0, nx1, ny1, this.me);
+    if (ids.length) { this.audio?.play('select'); this.ui.selectUnits(d.shift ? [...new Set([...this.ui.sel.units, ...ids])] : ids); }
+    else if (!d.shift) this.ui.clearSelection();
   }
 
   _drawMarquee() {
@@ -127,6 +139,115 @@ export class Input {
     m.style.top = Math.min(d.y0, d.y1) + 'px';
     m.style.width = Math.abs(d.x1 - d.x0) + 'px';
     m.style.height = Math.abs(d.y1 - d.y0) + 'px';
+  }
+
+  // ---- touch pointers: tap select / tap command / drag marquee -------------
+  // One finger: tap = select or context-command, drag = marquee box-select.
+  // Two fingers (handled via touch events): pinch zoom, pan, twist rotate.
+  _touchDown(e) {
+    this._touchPointers.add(e.pointerId);
+    if (this._touchPointers.size > 1) {
+      // second finger: cancel any pending tap/marquee — camera gesture now
+      this._touchStart = null;
+      if (this.drag) { this.drag = null; this.ui.$marquee.style.display = 'none'; }
+      return;
+    }
+    this._touchStart = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    this._lastPointer = { x: e.clientX, y: e.clientY };
+  }
+
+  _touchMove(e) {
+    if (!this._touchPointers.has(e.pointerId)) return;
+    if (this._touchPointers.size > 1) return; // pinch/pan handled by touch events
+    if (this.ui.buildMode) { this._moveGhost(e); this._lastPointer = { x: e.clientX, y: e.clientY }; return; }
+    if (this.drag) {
+      this.drag.x1 = e.clientX; this.drag.y1 = e.clientY;
+      this._drawMarquee();
+    } else if (this._touchStart && this._touchStart.id === e.pointerId) {
+      const moved = Math.abs(e.clientX - this._touchStart.x) + Math.abs(e.clientY - this._touchStart.y);
+      if (moved > 14) {
+        this.drag = { x0: this._touchStart.x, y0: this._touchStart.y, x1: e.clientX, y1: e.clientY, shift: false };
+        this._drawMarquee();
+      }
+    }
+    this._lastPointer = { x: e.clientX, y: e.clientY };
+  }
+
+  _touchUp(e) {
+    this._touchPointers.delete(e.pointerId);
+    if (this.drag) {
+      const d = this.drag; this.drag = null;
+      this.ui.$marquee.style.display = 'none';
+      this._marqueeSelect(d);
+      this._touchStart = null;
+      return;
+    }
+    const ts = this._touchStart;
+    this._touchStart = null;
+    if (!ts || ts.id !== e.pointerId) return;
+    const moved = Math.abs(e.clientX - ts.x) + Math.abs(e.clientY - ts.y);
+    if (moved > 14) return;
+    this._tap(e);
+  }
+
+  // A single-finger tap: select what's under the finger, otherwise issue the
+  // context command (the touch equivalent of desktop right-click).
+  _tap(e) {
+    if (!this.enabled || this.paused) return;
+    if (this.ui.buildMode) { this._place(e); return; }
+
+    const sel = this.ui.sel;
+    const id = this.renderer.pickEntity(e.clientX, e.clientY);
+    if (id) {
+      const ent = this.game.entity(id);
+      if (ent && ent.owner === this.me) {
+        // own entity: select it
+        this.audio?.play('select');
+        if (ent.kind === 'building') this.ui.selectBuilding(id);
+        else this.ui.selectUnits([id]);
+        return;
+      }
+      if (ent) {
+        // enemy: attack with current selection, else inspect
+        const own = sel.units.filter(uid => { const u = this.game.entity(uid); return u && u.owner === this.me; });
+        if (own.length && !this.game.players[this.me].allies.has(ent.owner) && !this.game.players[ent.owner]?.defeated) {
+          this.game.commandAttack(own, id); this.audio?.play('attack_order');
+          this.renderer.effects.ringPulse(ent.x, ent.z, 0xff5d6c, 3);
+        } else if (ent.kind === 'unit') this.ui.selectUnits([id]);
+        return;
+      }
+    }
+    const nid = this.renderer.pickNode(e.clientX, e.clientY);
+    if (nid) {
+      const workers = sel.units.filter(uid => { const u = this.game.entity(uid); return u && u.owner === this.me && u.def.gather; });
+      if (workers.length) {
+        this.game.commandGather(workers, nid); this.audio?.play('move');
+        const n = this.game.world.nodes.find(x => x.id === nid);
+        this.renderer.effects.ringPulse(n.x, n.z, 0x37e0a0, 3);
+        return;
+      }
+    }
+    // ground tap
+    const gp = this.renderer.groundPoint(e.clientX, e.clientY);
+    if (!gp) return;
+    if (sel.building) {
+      const b = this.game.entity(sel.building);
+      if (b && b.owner === this.me) {
+        this.game.commandSetRally(sel.building, gp.x, gp.z);
+        this.ui.toast('Rally point set');
+        this.renderer.effects.ringPulse(gp.x, gp.z, 0xffffff, 3);
+      } else this.ui.clearSelection();
+      return;
+    }
+    const own = sel.units.filter(uid => { const u = this.game.entity(uid); return u && u.owner === this.me; });
+    if (own.length) {
+      this.game.commandMove(own, gp.x, gp.z, this.attackMoveArmed || this.ui.attackMoveArmed);
+      this.attackMoveArmed = false; this.ui.attackMoveArmed = false;
+      this.audio?.play('move');
+      this.renderer.effects.ringPulse(gp.x, gp.z, 0x8fd0ff, 2.4);
+    } else {
+      this.ui.clearSelection();
+    }
   }
 
   // ---- right click = context command --------------------------------------
@@ -208,6 +329,16 @@ export class Input {
       if (k === 'h') { this.ui.toggleHelp(); return; }
       if (k === 'a' && !this.ui.sel.units.length && !this.ui.sel.building) { this.ui.toggleActions(); return; }
       if (k === ' ') { this._centerSelection(); e.preventDefault(); return; }
+      // control groups: Ctrl/Cmd+digit assigns, digit recalls
+      if (k >= '1' && k <= '9') {
+        if (e.ctrlKey || e.metaKey) {
+          if (this.ui.sel.units.length) { this.groups[k] = this.ui.sel.units.slice(); this.ui.toast(`Control group ${k} set`); }
+          e.preventDefault(); return;
+        }
+        const g = (this.groups[k] || []).filter(id => { const u = this.game.entity(id); return u && u.state !== 'dead'; });
+        if (g.length) { this.groups[k] = g; this.ui.selectUnits(g); if (this._lastGroupKey === k && performance.now() - (this._lastGroupT || 0) < 400) this._centerSelection(); this._lastGroupKey = k; this._lastGroupT = performance.now(); }
+        return;
+      }
       // context hotkeys: trigger matching command button
       this._hotkey(k);
     }
@@ -223,8 +354,6 @@ export class Input {
       const kk = b.querySelector('.ck');
       if (kk && kk.textContent.toLowerCase() === k) { b.click(); return; }
     }
-    // strategic action hotkeys
-    for (const id in this._actionKeys || {}) { }
   }
 
   _centerSelection() {
@@ -239,7 +368,7 @@ export class Input {
     if (x !== undefined) this.rig.desiredTarget.set(x, 0, z);
   }
 
-  // ---- touch (pinch zoom + two-finger rotate/pan) --------------------------
+  // ---- touch (pinch zoom + two-finger pan + twist rotate) ------------------
   _touch(e) {
     e.preventDefault();
     for (const t of e.changedTouches) this._touches.set(t.identifier, { x: t.clientX, y: t.clientY });
@@ -249,15 +378,22 @@ export class Input {
       this.rig.zoomBy((this._prevPinch - d) * 0.08);
       const mx = (pts[0].x + pts[1].x) / 2, my = (pts[0].y + pts[1].y) / 2;
       if (this._prevMid) this.rig.panBy((this._prevMid.x - mx) * 0.06, (this._prevMid.y - my) * 0.06);
-      this._prevMid = { x: mx, y: my }; this._prevPinch = d;
+      const ang = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
+      if (this._prevAng !== null && this._prevAng !== undefined) {
+        let da = ang - this._prevAng;
+        while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
+        this.rig.rotateBy(da, 0);
+      }
+      this._prevMid = { x: mx, y: my }; this._prevPinch = d; this._prevAng = ang;
     } else if (pts.length === 2) {
       this._prevPinch = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
       this._prevMid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+      this._prevAng = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
     }
   }
   _touchEnd(e) {
     for (const t of e.changedTouches) this._touches.delete(t.identifier);
-    if (this._touches.size < 2) { this._prevPinch = null; this._prevMid = null; }
+    if (this._touches.size < 2) { this._prevPinch = null; this._prevMid = null; this._prevAng = null; }
   }
 
   // ---- per-frame -----------------------------------------------------------

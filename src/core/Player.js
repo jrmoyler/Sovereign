@@ -34,6 +34,7 @@ export class Player {
     this.ultimateDone = false;
 
     this.actionCd = {};                 // actionId -> seconds remaining
+    this.tempMods = [];                 // timed buffs: [{ key, mul, t }]
     this.allies = new Set();            // player indices
 
     this.aiState = null;                // populated for AI players
@@ -41,12 +42,27 @@ export class Player {
     this.color2 = this.faction.color2 || this.faction.color;
   }
 
-  // Effective modifier: faction base × research multipliers.
+  // Effective modifier: faction base × research multipliers × timed buffs.
   getMod(key, dflt = 1) {
-    return factionMod(this.faction, key, dflt) * (this.techMods[key] ?? 1);
+    let v = factionMod(this.faction, key, dflt) * (this.techMods[key] ?? 1);
+    for (const b of this.tempMods) if (b.key === key) v *= b.mul;
+    return v;
   }
 
   addTechMod(key, mul) { this.techMods[key] = (this.techMods[key] ?? 1) * mul; }
+
+  // Timed buff (e.g. a campaign adoption surge). Refreshes if already active.
+  addTempMod(key, mul, seconds) {
+    const cur = this.tempMods.find(b => b.key === key && b.mul === mul);
+    if (cur) cur.t = Math.max(cur.t, seconds);
+    else this.tempMods.push({ key, mul, t: seconds });
+  }
+  updateTempMods(dt) {
+    for (let i = this.tempMods.length - 1; i >= 0; i--) {
+      this.tempMods[i].t -= dt;
+      if (this.tempMods[i].t <= 0) this.tempMods.splice(i, 1);
+    }
+  }
 
   get stackStage() { return SOVEREIGN_STACK[this.stackIndex] || null; }
   get stackDoneCount() { return this.stackIndex; }

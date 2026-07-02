@@ -108,10 +108,25 @@ export class UI {
 
     // mobile controls
     this.$mobile = el('div', ''); this.$mobile.id = 'mobile-ctl';
-    for (const [g, fn] of [['➕', () => this.renderer.rig.zoomBy(-10)], ['➖', () => this.renderer.rig.zoomBy(10)], ['↻', () => this.renderer.rig.rotateBy(0.4, 0)]]) {
-      const b = el('div', 'icon-btn', g); b.onclick = fn; this.$mobile.appendChild(b);
+    for (const [g, title, fn] of [
+      ['➕', 'Zoom in', () => this.renderer.rig.zoomBy(-10)],
+      ['➖', 'Zoom out', () => this.renderer.rig.zoomBy(10)],
+      ['↻', 'Rotate', () => this.renderer.rig.rotateBy(0.4, 0)],
+      ['✕', 'Clear selection', () => { this.cancelBuild(); this.clearSelection(); }],
+      ['⛶', 'Fullscreen', () => {
+        if (document.fullscreenElement) document.exitFullscreen?.();
+        else document.documentElement.requestFullscreen?.();
+      }],
+    ]) {
+      const b = el('div', 'icon-btn', g); b.title = title; b.onclick = fn; this.$mobile.appendChild(b);
     }
     this.root.appendChild(this.$mobile);
+
+    // floating cancel button for build-placement mode (essential on touch)
+    this.$buildCancel = el('button', 'btn', '✕ Cancel placement');
+    this.$buildCancel.id = 'build-cancel'; this.$buildCancel.style.display = 'none';
+    this.$buildCancel.onclick = () => this.cancelBuild();
+    this.root.appendChild(this.$buildCancel);
 
     this.setSelection({ units: [], building: 0 });
   }
@@ -213,8 +228,17 @@ export class UI {
   }
 
   // ---- build placement -----------------------------------------------------
-  startBuild(bid) { this.buildMode = bid; this.toast(`Placing ${BUILDINGS[bid].name} — click to build, right-click to cancel`); if (this.hooks.onBuildMode) this.hooks.onBuildMode(bid); }
-  cancelBuild() { this.buildMode = null; if (this.hooks.onBuildMode) this.hooks.onBuildMode(null); }
+  startBuild(bid) {
+    this.buildMode = bid;
+    this.toast(`Placing ${BUILDINGS[bid].name} — tap/click to build`);
+    this.$buildCancel.style.display = 'block';
+    if (this.hooks.onBuildMode) this.hooks.onBuildMode(bid);
+  }
+  cancelBuild() {
+    this.buildMode = null;
+    this.$buildCancel.style.display = 'none';
+    if (this.hooks.onBuildMode) this.hooks.onBuildMode(null);
+  }
 
   // ---- per-frame update ----------------------------------------------------
   update(dt) {

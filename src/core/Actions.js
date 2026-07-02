@@ -37,7 +37,7 @@ export function doAction(game, p, actionId, opts = {}) {
       break;
     case 'campaign': {
       p.res.trust += 90 * p.getMod('trustRate', 1) * p.getMod('influence', 1);
-      p.addTechMod('adoption', 1.15); // temporary-ish surge (persists as a small boost)
+      p.addTempMod('adoption', 1.2, 30); // 30s adoption surge
       break;
     }
     case 'secure_gov':
