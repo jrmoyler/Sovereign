@@ -60,7 +60,13 @@ export class UI {
     // faction / sovereign panel
     this.$fpanel = el('div', 'panel'); this.$fpanel.id = 'faction-panel';
     this.$fpanel.innerHTML = `<div class="fp-name">${p.faction.name}</div><div class="fp-role">${p.faction.role}</div>
+      <div class="fp-collapse" title="Collapse">▾</div>
       <div class="hdr">Sovereign Intelligence Stack</div><div class="stack-list"></div>`;
+    const collapse = this.$fpanel.querySelector('.fp-collapse');
+    collapse.onclick = () => {
+      const c = this.$fpanel.classList.toggle('collapsed');
+      collapse.textContent = c ? '▸' : '▾';
+    };
     this.$stackList = this.$fpanel.querySelector('.stack-list');
     this.stackRows = SOVEREIGN_STACK.map((s, i) => {
       const row = el('div', 'stack-row');
@@ -193,7 +199,9 @@ export class UI {
 
     // nothing selected
     this.$pname.textContent = '—'; this.$pcount.textContent = ''; this.$php.style.width = '0%';
-    this.$cmdTitle.innerHTML = 'Select a unit or building. <b>Left-drag</b> to box-select, <b>right-click</b> to command.';
+    this.$cmdTitle.innerHTML = document.body.classList.contains('touch')
+      ? 'Select a unit or building. <b>Tap</b> to select, <b>drag</b> to box-select, then <b>tap</b> a target to command.'
+      : 'Select a unit or building. <b>Left-drag</b> to box-select, <b>right-click</b> to command.';
   }
 
   _cmdBtn(icon, label, key, onClick, enabledFn, tip) {
@@ -419,7 +427,12 @@ build <b>Sovereign Intelligence</b> — superintelligence — before they do. Gr
     <h3>Selection & Orders</h3><ul>
       <li><b>Left-click</b> Select unit/building</li><li><b>Left-drag</b> Box-select units</li>
       <li><b>Right-click</b> Move / Attack / Gather</li><li><b>Shift-click</b> Add to selection</li>
-      <li><b>Right-click (building)</b> Set rally point</li></ul>
+      <li><b>Right-click (building)</b> Set rally point</li>
+      <li><b>Ctrl + 1–9</b> Assign control group</li><li><b>1–9</b> Select control group</li></ul>
+    <h3>Touch Controls</h3><ul>
+      <li><b>Tap</b> Select unit / building</li><li><b>Drag</b> Box-select units</li>
+      <li><b>Tap ground/enemy</b> Command selection</li><li><b>Two fingers</b> Pan · pinch zoom · twist rotate</li>
+      <li><b>✕ button</b> Clear selection</li></ul>
   </div>
   <div>
     <h3>Economy (8 resources)</h3><ul>

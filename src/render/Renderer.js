@@ -199,7 +199,7 @@ export class GameRenderer {
     const hit = this.raycaster.intersectObject(this.ground, false)[0];
     return hit ? { x: hit.point.x, z: hit.point.z } : null;
   }
-  pickEntity(clientX, clientY) {
+  pickEntity(clientX, clientY, pxRadius = 22) {
     this._setNdc(clientX, clientY);
     this.raycaster.setFromCamera(this._ndc, this.camera);
     const hits = this.raycaster.intersectObjects(Array.from(this.views.values()).map(v => v.group), true);
@@ -207,7 +207,21 @@ export class GameRenderer {
       let o = hit.object;
       while (o) { if (o.userData && o.userData.entityId) return o.userData.entityId; o = o.parent; }
     }
-    return 0;
+    // Forgiving fallback (essential for skinned meshes + touch): nearest unit
+    // by screen-space distance within a small pixel radius.
+    const r = this.renderer.domElement.getBoundingClientRect();
+    let best = 0, bd = pxRadius * pxRadius;
+    for (const v of this.views.values()) {
+      const e = v.e;
+      if (e.kind !== 'unit' || e.state === 'dead' || !e.selectable) continue;
+      this._proj.set(v.group.position.x, 1, v.group.position.z).project(this.camera);
+      if (this._proj.z > 1) continue;
+      const sx = (this._proj.x * 0.5 + 0.5) * r.width + r.left;
+      const sy = (-this._proj.y * 0.5 + 0.5) * r.height + r.top;
+      const d = (sx - clientX) ** 2 + (sy - clientY) ** 2;
+      if (d < bd) { bd = d; best = e.id; }
+    }
+    return best;
   }
   pickNode(clientX, clientY) {
     this._setNdc(clientX, clientY);

@@ -226,7 +226,7 @@ function block(fac, w, h, d, y = 0, opts = {}) {
   const baysX = Math.max(1, Math.round(w / BAY));
   const baysZ = Math.max(1, Math.round(d / BAY));
   const floors = Math.max(1, Math.round(h / FLOOR));
-  const roof = opts.roofMat || concreteMat(0xbfc3ca);
+  const roof = opts.roofMat || concreteMat(0x71767e);
   const sideX = facadeMat(fac, baysZ, floors, opts);
   const sideZ = facadeMat(fac, baysX, floors, opts);
   const geo = new THREE.BoxGeometry(w, h, d);
@@ -381,7 +381,7 @@ function genPowerNode(g, w, fac, accent, r, y0) {
   drum.position.set(-w * 0.18, drum.position.y, -w * 0.12); g.add(drum);
   const dome = new THREE.Mesh(
     new THREE.SphereGeometry(drumR, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2),
-    concreteMat(0xd0d4da, 0.6));
+    concreteMat(0xaeb3ba, 0.6));
   dome.position.set(-w * 0.18, y0 + FLOOR * 1.6, -w * 0.12); shadowed(dome); g.add(dome);
   const domeRing = new THREE.Mesh(new THREE.TorusGeometry(drumR * 0.99, 0.04, 6, 24), mat(accent, { emissive: accent, ei: 1.2 }));
   domeRing.rotation.x = Math.PI / 2; domeRing.position.set(-w * 0.18, y0 + FLOOR * 1.6 + 0.05, -w * 0.12); g.add(domeRing);
