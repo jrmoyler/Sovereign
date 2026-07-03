@@ -240,7 +240,13 @@ export class GameRenderer {
         case 'remove': { const v = this.views.get(ev.id); if (v) { this.scene.remove(v.group); v.dispose(); this.views.delete(ev.id); } break; }
         case 'attack': {
           const col = this.factionColors[ev.owner]?.color;
-          if (ev.ranged) { this.effects.tracer(ev.x, ev.z, ev.tx, ev.tz, new THREE.Color(col).getHex()); this.effects.muzzle(ev.x, ev.z); }
+          if (ev.ranged) {
+            this.effects.tracer(ev.x, ev.z, ev.tx, ev.tz, new THREE.Color(col).getHex());
+            this.effects.muzzle(ev.x, ev.z, new THREE.Color(col).getHex());
+          } else {
+            this.effects.meleeArc(ev.x, ev.z, ev.tx, ev.tz, new THREE.Color(col).getHex());
+          }
+          this.effects.floatText(ev.tx, ev.tz, `-${Math.round(ev.dmg)}`, ev.ranged ? '#ffe08a' : '#ff8a7a');
           this.onSfx && this.onSfx(ev.ranged ? 'shoot' : 'melee', ev);
           break;
         }

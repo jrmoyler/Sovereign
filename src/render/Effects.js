@@ -25,18 +25,35 @@ export class Effects {
     this.items = [];       // active transient objects with {obj, t, life, update}
     this.shake = 0;
     this.shakeVec = new THREE.Vector3();
-    this._geoRing = new THREE.RingGeometry(0.2, 0.5, 20);
+    this._geoRing = new THREE.RingGeometry(0.2, 0.5, 32);
+    this._boltGeo = new THREE.CylinderGeometry(0.045, 0.045, 1, 8);
   }
 
   _add(obj, life, update) { this.scene.add(obj); this.items.push({ obj, t: 0, life, update }); }
 
   tracer(ax, az, bx, bz, color = 0x8fdcff) {
-    const g = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(ax, 1.1, az), new THREE.Vector3(bx, 1.1, bz),
-    ]);
-    const m = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 });
+    const start = new THREE.Vector3(ax, 1.25, az);
+    const end = new THREE.Vector3(bx, 1.25, bz);
+    const mid = start.clone().lerp(end, 0.5);
+    const len = start.distanceTo(end);
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95 });
+    const bolt = new THREE.Mesh(this._boltGeo, mat);
+    bolt.position.copy(mid);
+    bolt.scale.set(1, len, 1);
+    bolt.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), end.clone().sub(start).normalize());
+    this._add(bolt, 0.28, (it) => { const k = 1 - it.t / it.life; mat.opacity = 0.95 * k; bolt.scale.x = bolt.scale.z = 1 + (1-k)*4; });
+    const g = new THREE.BufferGeometry().setFromPoints([start, end]);
+    const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
+    const line = new THREE.Line(g, lineMat);
+    this._add(line, 0.18, (it) => { lineMat.opacity = 0.85 * (1 - it.t / it.life); });
+  }
+
+  meleeArc(ax, az, bx, bz, color = 0xff7a5c) {
+    const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(ax,1.1,az), new THREE.Vector3((ax+bx)/2,2.1,(az+bz)/2), new THREE.Vector3(bx,1.1,bz));
+    const g = new THREE.BufferGeometry().setFromPoints(curve.getPoints(18));
+    const m = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 1 });
     const line = new THREE.Line(g, m);
-    this._add(line, 0.16, (it) => { m.opacity = 0.9 * (1 - it.t / it.life); });
+    this._add(line, 0.32, (it) => { m.opacity = 1 - it.t / it.life; line.scale.setScalar(1 + it.t * 1.5); });
   }
 
   muzzle(x, z, color = 0xfff1c0) {
@@ -47,10 +64,10 @@ export class Effects {
   }
 
   impact(x, z, ranged = true) {
-    const color = ranged ? 0xffd27a : 0xff6a6a;
+    const color = ranged ? 0xfff07a : 0xff6a6a;
     const ring = new THREE.Mesh(this._geoRing, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2; ring.position.set(x, 0.3, z);
-    this._add(ring, 0.35, (it) => { const k = it.t / it.life; ring.scale.setScalar(1 + k * 5); ring.material.opacity = 0.9 * (1 - k); });
+    this._add(ring, 0.48, (it) => { const k = it.t / it.life; ring.scale.setScalar(1 + k * (ranged ? 7 : 4)); ring.material.opacity = 0.9 * (1 - k); });
     // sparks
     for (let i = 0; i < 6; i++) {
       const s = new THREE.Mesh(new THREE.SphereGeometry(0.12, 5, 4), new THREE.MeshBasicMaterial({ color, transparent: true }));
