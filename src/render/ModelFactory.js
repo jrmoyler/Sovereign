@@ -76,7 +76,7 @@ function makeFacade(kind, accentCss, wallCss) {
     office: '#2a2f3a', glass: '#1c2430', industrial: '#343a42',
     residential: '#33383f', civic: '#3d3c38',
   }[kind] || '#2a2f3a';
-  const wall = wallCss ? blendCss(kindBase, wallCss, 0.55) : kindBase;
+  const wall = wallCss ? blendCss(kindBase, wallCss, 0.78) : kindBase;
   a.fillStyle = wall; a.fillRect(0, 0, W, H);
   e.fillStyle = '#000'; e.fillRect(0, 0, W, H);
 
@@ -386,11 +386,11 @@ function addSignage(g, w, y0) {
   const face = divisionSignMat(STYLE.num, STYLE.accentCss);
   const frame = mat(0x22262e, { metal: 0.5, rough: 0.45 });
   const cx = w * 0.42, cz = w * 0.42;
-  const post = box(0.12, 1.05, 0.12, concreteMat(STYLE.trim), y0);
+  const post = box(0.14, 1.3, 0.14, concreteMat(STYLE.trim), y0);
   post.position.set(cx, post.position.y, cz); g.add(post);
-  const panel = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.66, 0.07),
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.95, 0.08),
     [frame, frame, frame, frame, face, face]);
-  panel.position.set(cx, y0 + 1.28, cz);
+  panel.position.set(cx, y0 + 1.85, cz);
   panel.rotation.y = Math.PI / 4;   // face outward on the diagonal
   shadowed(panel); g.add(panel);
 }

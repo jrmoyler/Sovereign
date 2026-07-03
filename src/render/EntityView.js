@@ -63,7 +63,13 @@ export class EntityView {
   }
 
   _initUnit(e, fc) {
-    const inst = this.ctx.assets.instance(e.def.model, e.def.tint || fc.color);
+    // Blend the unit's role tint with the owning division's color (division-
+    // dominant) so armies read as their faction at a glance while roles stay
+    // distinguishable within it.
+    const tint = e.def.tint
+      ? '#' + new THREE.Color(e.def.tint).lerp(new THREE.Color(fc.color), 0.62).getHexString()
+      : fc.color;
+    const inst = this.ctx.assets.instance(e.def.model, tint);
     inst.root.scale.setScalar(MODEL_SCALE[e.def.model] || 1.4);
     // specialist / combat units read a bit larger
     if (e.def.class === 'combat') inst.root.scale.multiplyScalar(1.12);

@@ -27,10 +27,10 @@ import { stackStageProgress } from '../core/Research.js';
 // division is activating Sovereign Intelligence). `sunDir` is normalized at
 // interpolation time; `night` drives building window/accent emissives.
 const SKY_KEYS = [
-  { t: 0.00, sunDir: [0.55, 0.95, 0.35], sunCol: 0xfff4e0, sunInt: 2.3, hemiSky: 0xbdd4f2, hemiGround: 0x4a5261, hemiInt: 0.95, ambCol: 0x8fa4c0, ambInt: 0.42, bg: 0x9db8da, fog: 0x9db8da, fogDens: 0.0045, ground: 0x49525f, gridOp: 0.14, routeOp: 0.10, edgeInt: 0.25, bloom: 0.15, exposure: 1.12, env: 1.0, night: 0.0 },
-  { t: 0.45, sunDir: [-0.25, 0.75, 0.5], sunCol: 0xffe9c4, sunInt: 2.0, hemiSky: 0xa8bede, hemiGround: 0x3d4450, hemiInt: 0.8, ambCol: 0x7d90ac, ambInt: 0.38, bg: 0x8aa2c4, fog: 0x8aa2c4, fogDens: 0.0055, ground: 0x3f4854, gridOp: 0.2, routeOp: 0.18, edgeInt: 0.45, bloom: 0.24, exposure: 1.08, env: 0.85, night: 0.15 },
-  { t: 0.70, sunDir: [-0.8, 0.3, 0.55], sunCol: 0xff9a55, sunInt: 1.5, hemiSky: 0x8a6a88, hemiGround: 0x2a2734, hemiInt: 0.6, ambCol: 0x6a5a78, ambInt: 0.34, bg: 0x584a6a, fog: 0x584a6a, fogDens: 0.0075, ground: 0x2b2b38, gridOp: 0.32, routeOp: 0.32, edgeInt: 0.8, bloom: 0.42, exposure: 1.05, env: 0.6, night: 0.55 },
-  { t: 1.00, sunDir: [0.45, 0.85, -0.5], sunCol: 0x8fa8e8, sunInt: 0.7, hemiSky: 0x40567a, hemiGround: 0x0a0e16, hemiInt: 0.6, ambCol: 0x223046, ambInt: 0.35, bg: 0x05070d, fog: 0x05070d, fogDens: 0.011, ground: 0x070a12, gridOp: 0.5, routeOp: 0.5, edgeInt: 1.2, bloom: 0.6, exposure: 1.02, env: 0.35, night: 1.0 },
+  { t: 0.00, sunDir: [0.55, 0.95, 0.35], sunCol: 0xfff4e0, sunInt: 2.3, hemiSky: 0xbdd4f2, hemiGround: 0x424a57, hemiInt: 0.95, ambCol: 0x8fa4c0, ambInt: 0.42, bg: 0x9db8da, fog: 0x9db8da, fogDens: 0.0028, ground: 0x424b57, gridOp: 0.14, routeOp: 0.10, edgeInt: 0.25, bloom: 0.15, exposure: 1.12, env: 1.0, night: 0.0 },
+  { t: 0.45, sunDir: [-0.25, 0.75, 0.5], sunCol: 0xffe9c4, sunInt: 2.0, hemiSky: 0xa8bede, hemiGround: 0x3d4450, hemiInt: 0.8, ambCol: 0x7d90ac, ambInt: 0.38, bg: 0x8aa2c4, fog: 0x8aa2c4, fogDens: 0.0038, ground: 0x3b4450, gridOp: 0.2, routeOp: 0.18, edgeInt: 0.45, bloom: 0.24, exposure: 1.08, env: 0.85, night: 0.15 },
+  { t: 0.70, sunDir: [-0.8, 0.3, 0.55], sunCol: 0xff9a55, sunInt: 1.5, hemiSky: 0x8a6a88, hemiGround: 0x2a2734, hemiInt: 0.6, ambCol: 0x6a5a78, ambInt: 0.34, bg: 0x584a6a, fog: 0x584a6a, fogDens: 0.006, ground: 0x2b2b38, gridOp: 0.32, routeOp: 0.32, edgeInt: 0.8, bloom: 0.42, exposure: 1.05, env: 0.6, night: 0.55 },
+  { t: 1.00, sunDir: [0.45, 0.85, -0.5], sunCol: 0x8fa8e8, sunInt: 0.7, hemiSky: 0x40567a, hemiGround: 0x0a0e16, hemiInt: 0.6, ambCol: 0x223046, ambInt: 0.35, bg: 0x05070d, fog: 0x05070d, fogDens: 0.0095, ground: 0x070a12, gridOp: 0.5, routeOp: 0.5, edgeInt: 1.2, bloom: 0.6, exposure: 1.02, env: 0.35, night: 1.0 },
 ];
 
 export class GameRenderer {

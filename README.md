@@ -98,6 +98,11 @@ Every division has a unique colour palette, HQ, economy bonus, **specialist unit
 **ultimate technology**, weakness, and AI personality profile (any division can also appear
 as an AI rival).
 
+Every division also has its own **architectural identity**: a façade wall palette, structural
+trim color, division-number signage on every building, and a unique signature motif (ZenFlow's
+floating lattice halo, Gaia's wind turbines, Titan's foundry smokestacks, Nomad's tensile
+sails, …) — so any base and any army on the map reads as its division at a glance.
+
 | Division | Specialist | Ultimate |
 | --- | --- | --- |
 | **01 ZenFlow** — Agent OS | Agent Swarm | 600-Agent Lattice |
@@ -182,11 +187,19 @@ This checks data integrity for all 20 divisions (specialists, ultimates, tech ga
 production buildings), plays a scripted match against AI rivals, and verifies research,
 training, construction, elimination and both victory paths.
 
+### Day/night cycle
+
+The match begins in bright morning daylight. The sky is driven by **race progress**, not wall
+time: as the leading division completes Sovereign-stack stages the sun sweeps through
+afternoon into a burning dusk, and the final stages play out in deep night — building windows
+and accent lighting come alive as darkness falls.
+
 ### Performance notes
 
 - Vendored Three.js, no runtime CDN; import maps resolve bare specifiers.
-- Pixel ratio capped (tighter on touch devices), PCF soft shadows (1024 on mobile),
-  single bloom pass, pooled/short-lived FX.
+- Renders at native device resolution (capped at 2× DPR) into a 4× multisampled
+  post-processing target — crisp on desktop and phones alike. PCF soft shadows
+  (1024 on mobile), single bloom pass, pooled/short-lived FX.
 - Fixed-step sim with a max-steps clamp prevents spiral-of-death on slow frames.
 - Skinned models are cloned from two shared glTF sources.
 - Buildings are compiled procedurally: canvas-generated window-façade textures (cached per
