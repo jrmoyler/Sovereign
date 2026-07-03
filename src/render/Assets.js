@@ -51,9 +51,9 @@ export class Assets {
         o.castShadow = true; o.receiveShadow = true;
         o.material = o.material.clone();
         if (tint) {
-          // subtle faction tint blended into the model
-          o.material.color = new THREE.Color(o.material.color).lerp(new THREE.Color(tint), 0.35);
-          if ('emissive' in o.material) { o.material.emissive = new THREE.Color(tint); o.material.emissiveIntensity = 0.12; }
+          // strong faction tint so units read as their division at a glance
+          o.material.color = new THREE.Color(o.material.color).lerp(new THREE.Color(tint), 0.55);
+          if ('emissive' in o.material) { o.material.emissive = new THREE.Color(tint); o.material.emissiveIntensity = 0.22; }
         }
       }
     });

@@ -2,6 +2,11 @@
 // GameRenderer — the Three.js hub. Owns scene, camera rig, post-processing,
 // terrain, resource-node meshes and all EntityViews. Consumes simulation
 // events to spawn/remove views and fire effects; exposes picking helpers.
+//
+// Also owns the DAY/NIGHT CYCLE: the match begins in bright daylight and the
+// sky sweeps through afternoon, dusk and finally deep night as the leading
+// division closes in on Sovereign Intelligence (race progress drives the
+// clock, not wall time).
 // ============================================================================
 
 import * as THREE from 'three';
@@ -13,10 +18,20 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 import { CameraRig } from './CameraRig.js';
 import { buildTerrain } from './Terrain.js';
-import { resourceNodeMesh } from './ModelFactory.js';
+import { resourceNodeMesh, setNightFactor } from './ModelFactory.js';
 import { EntityView } from './EntityView.js';
 import { Effects } from './Effects.js';
-import { FACTIONS } from '../data/factions.js';
+import { stackStageProgress } from '../core/Research.js';
+
+// Day/night keyframes, sampled by race progress (0 = match start, 1 = a
+// division is activating Sovereign Intelligence). `sunDir` is normalized at
+// interpolation time; `night` drives building window/accent emissives.
+const SKY_KEYS = [
+  { t: 0.00, sunDir: [0.55, 0.95, 0.35], sunCol: 0xfff4e0, sunInt: 2.3, hemiSky: 0xbdd4f2, hemiGround: 0x4a5261, hemiInt: 0.95, ambCol: 0x8fa4c0, ambInt: 0.42, bg: 0x9db8da, fog: 0x9db8da, fogDens: 0.0045, ground: 0x49525f, gridOp: 0.14, routeOp: 0.10, edgeInt: 0.25, bloom: 0.15, exposure: 1.12, env: 1.0, night: 0.0 },
+  { t: 0.45, sunDir: [-0.25, 0.75, 0.5], sunCol: 0xffe9c4, sunInt: 2.0, hemiSky: 0xa8bede, hemiGround: 0x3d4450, hemiInt: 0.8, ambCol: 0x7d90ac, ambInt: 0.38, bg: 0x8aa2c4, fog: 0x8aa2c4, fogDens: 0.0055, ground: 0x3f4854, gridOp: 0.2, routeOp: 0.18, edgeInt: 0.45, bloom: 0.24, exposure: 1.08, env: 0.85, night: 0.15 },
+  { t: 0.70, sunDir: [-0.8, 0.3, 0.55], sunCol: 0xff9a55, sunInt: 1.5, hemiSky: 0x8a6a88, hemiGround: 0x2a2734, hemiInt: 0.6, ambCol: 0x6a5a78, ambInt: 0.34, bg: 0x584a6a, fog: 0x584a6a, fogDens: 0.0075, ground: 0x2b2b38, gridOp: 0.32, routeOp: 0.32, edgeInt: 0.8, bloom: 0.42, exposure: 1.05, env: 0.6, night: 0.55 },
+  { t: 1.00, sunDir: [0.45, 0.85, -0.5], sunCol: 0x8fa8e8, sunInt: 0.7, hemiSky: 0x40567a, hemiGround: 0x0a0e16, hemiInt: 0.6, ambCol: 0x223046, ambInt: 0.35, bg: 0x05070d, fog: 0x05070d, fogDens: 0.011, ground: 0x070a12, gridOp: 0.5, routeOp: 0.5, edgeInt: 1.2, bloom: 0.6, exposure: 1.02, env: 0.35, night: 1.0 },
+];
 
 export class GameRenderer {
   constructor(container, assets) {
@@ -28,21 +43,21 @@ export class GameRenderer {
 
     const w = container.clientWidth, h = container.clientHeight;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio = this.renderer.setPixelRatio.bind(this.renderer);
-    // cap pixel ratio harder on touch devices — mobile GPUs pay dearly for it
-    const isTouch = 'ontouchstart' in window;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, isTouch ? 1.5 : 1.75));
+    // Render at (close to) native resolution — the old 1.5/1.75 caps are the
+    // main reason everything looked soft, especially on 3x phone screens.
+    this.isTouch = 'ontouchstart' in window;
+    this.renderer.setPixelRatio(this._pixelRatio());
     this.renderer.setSize(w, h);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.1;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x05070d);
-    this.scene.fog = new THREE.FogExp2(0x05070d, 0.011);
+    this.scene.background = new THREE.Color(0x9db8da);
+    this.scene.fog = new THREE.FogExp2(0x9db8da, 0.0045);
 
     this.camera = new THREE.PerspectiveCamera(45, w / h, 0.5, 1200);
     this.rig = new CameraRig(this.camera);
@@ -54,10 +69,17 @@ export class GameRenderer {
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
-    // post-processing (bloom)
-    this.composer = new EffectComposer(this.renderer);
+    // Post-processing. The composer renders into an off-screen target which
+    // bypasses the canvas's built-in MSAA — request multisampling on the
+    // target itself, otherwise the whole frame comes out aliased AND soft.
+    const pr = this.renderer.getPixelRatio();
+    const rt = new THREE.WebGLRenderTarget(w * pr, h * pr, {
+      type: THREE.HalfFloatType,
+      samples: 4,
+    });
+    this.composer = new EffectComposer(this.renderer, rt);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.65, 0.6, 0.85);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.15, 0.45, 0.85);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
 
@@ -68,8 +90,19 @@ export class GameRenderer {
     this.factionColors = null;
     this._ghost = null;
 
+    // day/night state (0 = day start, 1 = deep night)
+    this.dayPhase = 0;
+    this._skyA = { ...SKY_KEYS[0] };   // scratch for interpolation
+    this._col = new THREE.Color(); this._col2 = new THREE.Color();
+
     this._onResize = () => this.resize();
     window.addEventListener('resize', this._onResize);
+  }
+
+  _pixelRatio() {
+    // Native DPR capped at 2 — sharp on 1x/2x monitors and 3x phones alike
+    // without tripling the mobile GPU load.
+    return Math.min(window.devicePixelRatio || 1, 2);
   }
 
   dispose() {
@@ -82,24 +115,93 @@ export class GameRenderer {
   }
 
   _setupLights() {
-    this.scene.add(new THREE.HemisphereLight(0x40567a, 0x0a0e16, 0.65));
-    const amb = new THREE.AmbientLight(0x223046, 0.35); this.scene.add(amb);
-    const sun = new THREE.DirectionalLight(0xcfe0ff, 1.7);
-    sun.position.set(60, 90, 40);
+    this.hemi = new THREE.HemisphereLight(0xbdd4f2, 0x4a5261, 0.95);
+    this.scene.add(this.hemi);
+    this.amb = new THREE.AmbientLight(0x8fa4c0, 0.42); this.scene.add(this.amb);
+    const sun = new THREE.DirectionalLight(0xfff4e0, 2.3);
+    sun.position.set(55, 95, 35);
     sun.castShadow = true;
-    const shadowRes = ('ontouchstart' in window) ? 1024 : 2048;
+    const shadowRes = this.isTouch ? 1024 : 2048;
     sun.shadow.mapSize.set(shadowRes, shadowRes);
     const d = 90; const c = sun.shadow.camera;
     c.left = -d; c.right = d; c.top = d; c.bottom = -d; c.near = 1; c.far = 300;
     sun.shadow.bias = -0.0004;
     this.scene.add(sun); this.sun = sun;
     // cool rim light
-    const rim = new THREE.DirectionalLight(0x4a7dff, 0.5); rim.position.set(-50, 30, -60); this.scene.add(rim);
+    this.rim = new THREE.DirectionalLight(0x4a7dff, 0.35); this.rim.position.set(-50, 30, -60); this.scene.add(this.rim);
+  }
+
+  // ---- day/night cycle ------------------------------------------------------
+  // The clock is the race itself: the furthest-progressed division's Sovereign
+  // stack completion drives the sky from morning daylight into deep night,
+  // with a small time-based drift so the sky never feels frozen early on.
+  _raceProgress() {
+    if (!this.game) return 0;
+    let best = 0;
+    for (const p of this.game.players) {
+      if (p.defeated) continue;
+      best = Math.max(best, (p.stackIndex + stackStageProgress(p)) / 8);
+    }
+    const drift = Math.min(0.12, (this.game.time / 900) * 0.12);
+    return Math.min(1, Math.max(best, drift));
+  }
+
+  _sampleSky(t, out) {
+    let a = SKY_KEYS[0], b = SKY_KEYS[SKY_KEYS.length - 1];
+    for (let i = 0; i < SKY_KEYS.length - 1; i++) {
+      if (t >= SKY_KEYS[i].t && t <= SKY_KEYS[i + 1].t) { a = SKY_KEYS[i]; b = SKY_KEYS[i + 1]; break; }
+    }
+    const span = Math.max(1e-6, b.t - a.t);
+    const k = THREE.MathUtils.smoothstep((t - a.t) / span, 0, 1);
+    const L = (x, y) => x + (y - x) * k;
+    out.sunDir = [L(a.sunDir[0], b.sunDir[0]), L(a.sunDir[1], b.sunDir[1]), L(a.sunDir[2], b.sunDir[2])];
+    out.sunInt = L(a.sunInt, b.sunInt); out.hemiInt = L(a.hemiInt, b.hemiInt);
+    out.ambInt = L(a.ambInt, b.ambInt); out.fogDens = L(a.fogDens, b.fogDens);
+    out.gridOp = L(a.gridOp, b.gridOp); out.routeOp = L(a.routeOp, b.routeOp);
+    out.edgeInt = L(a.edgeInt, b.edgeInt); out.bloom = L(a.bloom, b.bloom);
+    out.exposure = L(a.exposure, b.exposure); out.env = L(a.env, b.env);
+    out.night = L(a.night, b.night);
+    const C = (ca, cb) => this._col.set(ca).lerp(this._col2.set(cb), k).getHex();
+    out.sunCol = C(a.sunCol, b.sunCol); out.hemiSky = C(a.hemiSky, b.hemiSky);
+    out.hemiGround = C(a.hemiGround, b.hemiGround); out.ambCol = C(a.ambCol, b.ambCol);
+    out.bg = C(a.bg, b.bg); out.fog = C(a.fog, b.fog); out.ground = C(a.ground, b.ground);
+    return out;
+  }
+
+  _updateDayNight(dt) {
+    const target = this._raceProgress();
+    // ease toward the target so stage completions shift the sky gracefully
+    this.dayPhase += (target - this.dayPhase) * Math.min(1, dt * 0.25);
+    const s = this._sampleSky(this.dayPhase, this._skyA);
+
+    this.sun.color.set(s.sunCol); this.sun.intensity = s.sunInt;
+    this.sun.position.set(s.sunDir[0], s.sunDir[1], s.sunDir[2]).normalize().multiplyScalar(110);
+    this.hemi.color.set(s.hemiSky); this.hemi.groundColor.set(s.hemiGround); this.hemi.intensity = s.hemiInt;
+    this.amb.color.set(s.ambCol); this.amb.intensity = s.ambInt;
+    this.rim.intensity = 0.2 + s.night * 0.35;
+
+    this.scene.background.set(s.bg);
+    this.scene.fog.color.set(s.fog); this.scene.fog.density = s.fogDens;
+    this.scene.environmentIntensity = s.env;
+    this.renderer.toneMappingExposure = s.exposure;
+    this.bloom.strength = s.bloom;
+
+    if (this.terrain) {
+      this.terrain.groundMat.color.set(s.ground);
+      this.terrain.gridMat.opacity = s.gridOp;
+      this.terrain.routeMat.opacity = s.routeOp;
+      this.terrain.edgeMat.emissiveIntensity = s.edgeInt;
+    }
+    // building windows / accent lights come alive as night falls
+    setNightFactor(s.night);
   }
 
   buildWorld(game, rng) {
     this.game = game;
-    this.factionColors = game.players.map(p => ({ color: p.color, color2: p.color2 }));
+    this.factionColors = game.players.map(p => ({
+      color: p.color, color2: p.color2,
+      num: p.faction.num, arch: p.faction.arch,
+    }));
     const t = buildTerrain(this.scene, rng);
     this.terrain = t;
     this.ground = this.scene.children.find(() => false); // set below
@@ -256,6 +358,7 @@ export class GameRenderer {
   render(dt) {
     this.rig.update(dt);
     this.effects.update(dt);
+    this._updateDayNight(dt);
     // apply camera shake
     this.camera.position.add(this.effects.shakeVec);
     this.composer.render();
@@ -264,6 +367,11 @@ export class GameRenderer {
   resize() {
     const w = this.container.clientWidth, h = this.container.clientHeight;
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
-    this.renderer.setSize(w, h); this.composer.setSize(w, h);
+    // DPR can change when a window moves between monitors or the page zooms
+    const pr = this._pixelRatio();
+    this.renderer.setPixelRatio(pr);
+    this.renderer.setSize(w, h);
+    this.composer.setPixelRatio(pr);
+    this.composer.setSize(w, h);
   }
 }

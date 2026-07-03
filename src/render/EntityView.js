@@ -13,7 +13,8 @@ const UP = new THREE.Vector3(0, 1, 0);
 const MODEL_SCALE = { soldier: 2.1, robot: 1.15 };
 
 function healthSprite() {
-  const c = document.createElement('canvas'); c.width = 64; c.height = 10;
+  // 2x backing resolution so bars stay crisp on high-DPI screens
+  const c = document.createElement('canvas'); c.width = 128; c.height = 20;
   const tex = new THREE.CanvasTexture(c);
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
   const s = new THREE.Sprite(mat); s.scale.set(2.4, 0.36, 1);
@@ -22,12 +23,12 @@ function healthSprite() {
 }
 function drawHealth(sprite, frac, ownerColor) {
   const c = sprite.userData.canvas, ctx = c.getContext('2d');
-  ctx.clearRect(0, 0, 64, 10);
-  ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, 64, 10);
-  ctx.fillStyle = ownerColor; ctx.fillRect(1, 1, 4, 8);              // owner tab
-  const w = Math.max(0, Math.min(1, frac)) * 56;
+  ctx.clearRect(0, 0, 128, 20);
+  ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, 128, 20);
+  ctx.fillStyle = ownerColor; ctx.fillRect(2, 2, 8, 16);             // owner tab
+  const w = Math.max(0, Math.min(1, frac)) * 112;
   ctx.fillStyle = frac > 0.5 ? '#37e0a0' : frac > 0.25 ? '#ffcf5c' : '#ff5d6c';
-  ctx.fillRect(6, 2, w, 6);
+  ctx.fillRect(12, 4, w, 12);
   sprite.userData.tex.needsUpdate = true;
   sprite.userData.frac = frac;
 }
@@ -70,13 +71,17 @@ export class EntityView {
     this.mixer = inst.mixer; this.actions = inst.actions; this.root = inst.root;
     this.curAnim = null;
     this._play('idle', true);
-    // faction pip above head
-    const pip = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: fc.color }));
-    pip.position.y = 2.3; this.group.add(pip);
+    // faction pip above head — primary color diamond with a secondary ring so
+    // divisions with similar primaries still read apart
+    const pip = new THREE.Mesh(new THREE.OctahedronGeometry(0.17), new THREE.MeshBasicMaterial({ color: fc.color }));
+    pip.position.y = 2.35; this.group.add(pip);
+    const pipRing = new THREE.Mesh(new THREE.TorusGeometry(0.23, 0.035, 6, 16),
+      new THREE.MeshBasicMaterial({ color: fc.color2 || fc.color }));
+    pipRing.rotation.x = Math.PI / 2; pipRing.position.y = 2.35; this.group.add(pipRing);
   }
 
   _initBuilding(e, fc) {
-    this.mesh = buildingMesh(e.def, fc.color, fc.color2, e.id);
+    this.mesh = buildingMesh(e.def, fc, e.id);
     this.group.add(this.mesh);
     this.spinners = [];
     this.mesh.traverse(o => { if (o.userData && (o.userData.spin || o.userData.pulse || o.userData.turret)) this.spinners.push(o); });

@@ -164,7 +164,7 @@ body.touch #faction-panel .fp-collapse { display: block; }
 
 /* Minimap (bottom-right) */
 #minimap-wrap { position: fixed; right: 10px; bottom: 10px; z-index: 12; padding: 8px; }
-#minimap { display: block; border-radius: 6px; background: #04060c; cursor: crosshair; }
+#minimap { display: block; width: 180px; height: 180px; border-radius: 6px; background: #04060c; cursor: crosshair; }
 #minimap-wrap .hdr { margin-bottom: 6px; }
 
 /* Command / build panel (bottom-center) */
