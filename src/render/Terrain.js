@@ -1,6 +1,8 @@
 // ============================================================================
-// Terrain: dark obsidian ground plane, subtle grid, glowing "data route" lines
-// and a luminous world boundary. Bird's-eye premium tech aesthetic.
+// Terrain: ground plane, subtle grid, glowing "data route" lines and a
+// luminous world boundary. The ground and line materials are exposed so the
+// renderer's day/night cycle can retint them — a cool slate field by day,
+// dark obsidian with glowing routes by night.
 // ============================================================================
 
 import * as THREE from 'three';
@@ -10,8 +12,8 @@ export function buildTerrain(scene, rng) {
   const group = new THREE.Group();
   const S = MAP.SIZE;
 
-  // Ground — obsidian with faint sheen.
-  const groundMat = new THREE.MeshStandardMaterial({ color: 0x070a12, metalness: 0.55, roughness: 0.55 });
+  // Ground — retinted through the day/night cycle by the renderer.
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0x39414e, metalness: 0.35, roughness: 0.7 });
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(S, S, 1, 1), groundMat);
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
   ground.userData.pickGround = true;
@@ -50,5 +52,5 @@ export function buildTerrain(scene, rng) {
   }
 
   scene.add(group);
-  return { group, routes, routeMat };
+  return { group, routes, routeMat, groundMat, gridMat: grid.material, edgeMat };
 }

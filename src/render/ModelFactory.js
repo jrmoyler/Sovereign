@@ -6,10 +6,22 @@
 //   textures with lit/unlit emissive maps)  →  roof & detail modules
 //   (parapets, HVAC, vents, cooling stacks, antennas, dishes, columns).
 //
-// Façade textures are canvas-generated once per (kind, accent) and cached;
-// each wall clones the texture to set its own bay/floor repeat so window
-// density matches real wall dimensions. Every building is deterministically
-// varied by the entity id (seeded RNG) so no two read as identical clones.
+// Façade textures are canvas-generated once per (kind, accent, faction wall)
+// and cached; each wall clones the texture to set its own bay/floor repeat so
+// window density matches real wall dimensions. Every building is
+// deterministically varied by the entity id (seeded RNG) so no two read as
+// identical clones.
+//
+// DIVISION IDENTITY — every faction's buildings are distinguishable:
+//   * façade walls are tinted with the division's `arch.wall` palette,
+//   * parapets / structural trim use the division's `arch.trim` color,
+//   * every building carries a division-number sign plinth, and
+//   * every building carries the division's signature `arch.motif` structure
+//     (halo, pylons, crown, turbine, sails, …) — 20 unique motifs.
+//
+// All emissive materials register themselves so the renderer can drive a
+// day/night factor: windows and accent lights are dim in daylight and come
+// alive as night falls (see setNightFactor()).
 // ============================================================================
 
 import * as THREE from 'three';
@@ -39,14 +51,20 @@ function rng32(seed) {
 // ---------------------------------------------------------------------------
 // Canvas façade generator. Returns { map, emissive } textures.
 // kind: 'office' | 'glass' | 'industrial' | 'residential' | 'civic'
+// wallCss: the faction's wall palette, blended into the per-kind base color
+// so every division's architecture reads with its own material identity.
 // ---------------------------------------------------------------------------
 const _facadeCache = new Map();
 
-function makeFacade(kind, accentCss) {
-  const key = `${kind}:${accentCss}`;
+function blendCss(aCss, bCss, t) {
+  return `#${new THREE.Color(aCss).lerp(new THREE.Color(bCss), t).getHexString()}`;
+}
+
+function makeFacade(kind, accentCss, wallCss) {
+  const key = `${kind}:${accentCss}:${wallCss || ''}`;
   if (_facadeCache.has(key)) return _facadeCache.get(key);
 
-  const W = 128, H = 128;                    // one tile = 4 bays × 4 floors
+  const W = 256, H = 256;                    // one tile = 4 bays × 4 floors
   const COLS = 4, ROWS = 4;
   const albedo = document.createElement('canvas'); albedo.width = W; albedo.height = H;
   const emis = document.createElement('canvas'); emis.width = W; emis.height = H;
@@ -54,39 +72,40 @@ function makeFacade(kind, accentCss) {
   const e = emis.getContext('2d');
   const r = rng32([...key].reduce((s, c) => s + c.charCodeAt(0), 7));
 
-  const wall = {
+  const kindBase = {
     office: '#2a2f3a', glass: '#1c2430', industrial: '#343a42',
     residential: '#33383f', civic: '#3d3c38',
   }[kind] || '#2a2f3a';
+  const wall = wallCss ? blendCss(kindBase, wallCss, 0.78) : kindBase;
   a.fillStyle = wall; a.fillRect(0, 0, W, H);
   e.fillStyle = '#000'; e.fillRect(0, 0, W, H);
 
   // panel weathering
   for (let i = 0; i < 40; i++) {
     a.fillStyle = `rgba(${r() < 0.5 ? '255,255,255' : '0,0,0'},${0.02 + r() * 0.04})`;
-    a.fillRect(r() * W, r() * H, 4 + r() * 20, 3 + r() * 10);
+    a.fillRect(r() * W, r() * H, 8 + r() * 40, 6 + r() * 20);
   }
 
   const cw = W / COLS, ch = H / ROWS;
   for (let row = 0; row < ROWS; row++) {
     // floor slab line
     a.fillStyle = 'rgba(0,0,0,0.5)';
-    a.fillRect(0, row * ch, W, 2);
+    a.fillRect(0, row * ch, W, 4);
     for (let col = 0; col < COLS; col++) {
       const x = col * cw, y = row * ch;
       let wx, wy, ww, wh;
-      if (kind === 'glass') { wx = x + 2; wy = y + 4; ww = cw - 4; wh = ch - 6; }
+      if (kind === 'glass') { wx = x + 4; wy = y + 8; ww = cw - 8; wh = ch - 12; }
       else if (kind === 'industrial') {
         // high clerestory strip windows only on some rows
         if (row % 2 !== 0) continue;
-        wx = x + 5; wy = y + 4; ww = cw - 10; wh = ch * 0.22;
-      } else if (kind === 'residential') { wx = x + 8; wy = y + 7; ww = cw - 16; wh = ch - 13; }
-      else if (kind === 'civic') { wx = x + 10; wy = y + 6; ww = cw - 20; wh = ch - 11; }
-      else { wx = x + 7; wy = y + 7; ww = cw - 14; wh = ch - 12; }
+        wx = x + 10; wy = y + 8; ww = cw - 20; wh = ch * 0.22;
+      } else if (kind === 'residential') { wx = x + 16; wy = y + 14; ww = cw - 32; wh = ch - 26; }
+      else if (kind === 'civic') { wx = x + 20; wy = y + 12; ww = cw - 40; wh = ch - 22; }
+      else { wx = x + 14; wy = y + 14; ww = cw - 28; wh = ch - 24; }
 
       const lit = r() < (kind === 'industrial' ? 0.25 : 0.42);
       // frame
-      a.fillStyle = 'rgba(10,12,16,0.9)'; a.fillRect(wx - 1, wy - 1, ww + 2, wh + 2);
+      a.fillStyle = 'rgba(10,12,16,0.9)'; a.fillRect(wx - 2, wy - 2, ww + 4, wh + 4);
       if (lit) {
         const warm = r() < 0.75;
         const litCol = warm ? '#ffd9a0' : accentCss;
@@ -103,7 +122,7 @@ function makeFacade(kind, accentCss) {
       // mullion
       if (kind === 'glass' || kind === 'office') {
         a.fillStyle = 'rgba(0,0,0,0.55)';
-        a.fillRect(wx + ww / 2, wy, 1, wh);
+        a.fillRect(wx + ww / 2, wy, 2, wh);
       }
     }
   }
@@ -112,7 +131,7 @@ function makeFacade(kind, accentCss) {
     const t = new THREE.CanvasTexture(c);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.colorSpace = THREE.SRGBColorSpace;
-    t.anisotropy = 4;
+    t.anisotropy = 8;
     return t;
   };
   const out = { key, map: mk(albedo), emissive: mk(emis) };
@@ -124,19 +143,21 @@ function makeFacade(kind, accentCss) {
 let _concreteTex = null;
 function concreteTexture() {
   if (_concreteTex) return _concreteTex;
-  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const S = 128;
+  const c = document.createElement('canvas'); c.width = c.height = S;
   const x = c.getContext('2d');
-  x.fillStyle = '#3a3d43'; x.fillRect(0, 0, 64, 64);
+  x.fillStyle = '#3a3d43'; x.fillRect(0, 0, S, S);
   const r = rng32(99);
-  for (let i = 0; i < 300; i++) {
+  for (let i = 0; i < 600; i++) {
     x.fillStyle = `rgba(${r() < 0.5 ? '255,255,255' : '0,0,0'},${0.02 + r() * 0.05})`;
-    x.fillRect(r() * 64, r() * 64, 1 + r() * 3, 1 + r() * 3);
+    x.fillRect(r() * S, r() * S, 1 + r() * 5, 1 + r() * 5);
   }
-  x.strokeStyle = 'rgba(0,0,0,0.25)'; x.lineWidth = 1;
-  x.beginPath(); x.moveTo(32, 0); x.lineTo(32, 64); x.moveTo(0, 32); x.lineTo(64, 32); x.stroke();
+  x.strokeStyle = 'rgba(0,0,0,0.25)'; x.lineWidth = 2;
+  x.beginPath(); x.moveTo(S / 2, 0); x.lineTo(S / 2, S); x.moveTo(0, S / 2); x.lineTo(S, S / 2); x.stroke();
   _concreteTex = new THREE.CanvasTexture(c);
   _concreteTex.wrapS = _concreteTex.wrapT = THREE.RepeatWrapping;
   _concreteTex.colorSpace = THREE.SRGBColorSpace;
+  _concreteTex.anisotropy = 8;
   return _concreteTex;
 }
 
@@ -144,8 +165,29 @@ function concreteTexture() {
 // Material helpers — memoized so identical materials are shared across all
 // buildings. Shared materials let the static-geometry compiler merge whole
 // buildings into a handful of draw calls.
+//
+// Every emissive material registers its base intensity so the renderer can
+// drive the day/night cycle: setNightFactor(0) = full daylight (windows and
+// accent lights nearly off), setNightFactor(1) = deep night (full glow).
 // ---------------------------------------------------------------------------
 const _matCache = new Map();
+const _nightMats = [];       // { m, base, dayMul }
+let _nightFactor = 1;
+
+function registerNight(m, base, dayMul = 0.18) {
+  _nightMats.push({ m, base, dayMul });
+  m.emissiveIntensity = base * (dayMul + (1 - dayMul) * _nightFactor);
+}
+
+// f: 0 = daylight, 1 = night. Called by the renderer each frame.
+export function setNightFactor(f) {
+  f = Math.min(1, Math.max(0, f));
+  if (Math.abs(f - _nightFactor) < 0.002) return;
+  _nightFactor = f;
+  for (const { m, base, dayMul } of _nightMats) {
+    m.emissiveIntensity = base * (dayMul + (1 - dayMul) * f);
+  }
+}
 
 function mat(color, { emissive = 0x000000, ei = 0, metal = 0.35, rough = 0.65 } = {}) {
   const key = `m:${color}:${emissive}:${ei}:${metal}:${rough}`;
@@ -153,6 +195,7 @@ function mat(color, { emissive = 0x000000, ei = 0, metal = 0.35, rough = 0.65 } 
   if (!m) {
     m = new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: ei, metalness: metal, roughness: rough });
     m.userData.shared = true;
+    if (ei > 0) registerNight(m, ei);
     _matCache.set(key, m);
   }
   return m;
@@ -180,8 +223,9 @@ function facadeMat(fac, bays, floors, { rough = 0.5, metal = 0.25, ei = 0.36 } =
     m.emissiveMap = fac.emissive.clone(); m.emissiveMap.repeat.set(bays / 4, floors / 4);
     m.emissiveMap.needsUpdate = true;
     m.emissive = new THREE.Color(0xffffff);
-    m.emissiveIntensity = ei;
     m.userData.shared = true;
+    // windows glow at night, read as dark glass in daylight
+    registerNight(m, ei, 0.1);
     _matCache.set(key, m);
   }
   return m;
@@ -248,9 +292,15 @@ function cyl(rTop, rBot, h, m, y = 0, seg = 14) {
   return shadowed(mesh);
 }
 
-// Parapet frame around a roof (cx/cz = roof center offset).
+// The style of the building currently being generated (set by buildingMesh,
+// read by shared helpers so per-division trim doesn't have to thread through
+// every generator signature). Building generation is synchronous.
+let STYLE = null;
+
+// Parapet frame around a roof (cx/cz = roof center offset). Trim takes the
+// division's structural color so silhouettes read per-faction.
 function parapet(g, w, d, y, t = 0.1, h = 0.22, cx = 0, cz = 0) {
-  const pm = concreteMat(0x9ba0a8);
+  const pm = STYLE ? concreteMat(STYLE.trim) : concreteMat(0x9ba0a8);
   for (const [bw, bd, x, z] of [
     [w, t, 0, d / 2 - t / 2], [w, t, 0, -d / 2 + t / 2],
     [t, d, w / 2 - t / 2, 0], [t, d, -w / 2 + t / 2, 0],
@@ -299,6 +349,295 @@ function foundation(size, accent) {
   );
   curb.position.y = 0.03; g.add(curb);
   return g;
+}
+
+// ---------------------------------------------------------------------------
+// Division-number signage. Every building carries a small monolith sign with
+// the division number in the faction accent — instant ownership readability
+// even between divisions that share similar palettes. Unlit material so it
+// stays readable through the whole day/night cycle.
+// ---------------------------------------------------------------------------
+const _signCache = new Map();
+
+function divisionSignMat(num, accentCss) {
+  const key = `${num}:${accentCss}`;
+  let m = _signCache.get(key);
+  if (m) return m;
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const x = c.getContext('2d');
+  x.fillStyle = '#0b0e14'; x.fillRect(0, 0, 128, 128);
+  x.strokeStyle = accentCss; x.lineWidth = 6; x.strokeRect(5, 5, 118, 118);
+  x.fillStyle = accentCss;
+  x.font = '900 74px "Segoe UI", system-ui, sans-serif';
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText(num, 64, 56);
+  x.font = '700 20px "Segoe UI", system-ui, sans-serif';
+  x.fillText('DIVISION', 64, 106);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  m = new THREE.MeshBasicMaterial({ map: tex });
+  m.userData.shared = true;
+  _signCache.set(key, m);
+  return m;
+}
+
+function addSignage(g, w, y0) {
+  const face = divisionSignMat(STYLE.num, STYLE.accentCss);
+  const frame = mat(0x22262e, { metal: 0.5, rough: 0.45 });
+  const cx = w * 0.42, cz = w * 0.42;
+  const post = box(0.14, 1.3, 0.14, concreteMat(STYLE.trim), y0);
+  post.position.set(cx, post.position.y, cz); g.add(post);
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.95, 0.08),
+    [frame, frame, frame, frame, face, face]);
+  panel.position.set(cx, y0 + 1.85, cz);
+  panel.rotation.y = Math.PI / 4;   // face outward on the diagonal
+  shadowed(panel); g.add(panel);
+}
+
+// ---------------------------------------------------------------------------
+// Signature motifs — one unique structural signature per division, applied to
+// every building the division constructs. `top` is the building's current
+// bounding-box height so rooftop motifs sit above the massing.
+// ---------------------------------------------------------------------------
+const MOTIFS = {
+  // ZenFlow — floating luminous lattice halo above the structure
+  halo({ g, w, accent, top }) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(w * 0.3, 0.05, 8, 36),
+      mat(accent, { emissive: accent, ei: 1.3, metal: 0.3, rough: 0.4 }));
+    ring.rotation.x = Math.PI / 2; ring.position.y = top + 0.9;
+    ring.userData.spin = 0.35; g.add(ring);
+  },
+  // The Collective — command obelisk with a glowing seam
+  obelisk({ g, w, y0, accent, trim }) {
+    const o = box(0.3, 2.4, 0.3, concreteMat(trim), y0);
+    o.position.set(-w * 0.42, o.position.y, w * 0.4); o.rotation.y = Math.PI / 5; g.add(o);
+    const seam = box(0.06, 2.1, 0.06, mat(accent, { emissive: accent, ei: 1.4 }), y0 + 0.1);
+    seam.position.set(-w * 0.42 + 0.14, seam.position.y, w * 0.4); seam.rotation.y = Math.PI / 5; g.add(seam);
+  },
+  // Hybrid Living — living-roof greenery and courtyard trees
+  garden({ g, w, r, y0, top }) {
+    const green = mat(0x3f7a4a, { rough: 0.9, metal: 0 });
+    const canopy = mat(0x59985e, { rough: 0.9, metal: 0 });
+    const pad = box(w * 0.34, 0.1, w * 0.34, green, top - 0.02); g.add(pad);
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.5;
+      const tr = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.7, 7), i % 2 ? green : canopy);
+      tr.position.set(Math.cos(a) * w * 0.42, y0 + 0.35, Math.sin(a) * w * 0.42);
+      tr.castShadow = true; g.add(tr);
+    }
+  },
+  // Nexus Labs — story-projector beacon with spinning film ring
+  projector({ g, w, accent, accent2, top }) {
+    const beam = new THREE.Mesh(new THREE.ConeGeometry(w * 0.16, 1.6, 12, 1, true),
+      new THREE.MeshBasicMaterial({ color: accent2, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false }));
+    beam.position.y = top + 0.8; g.add(beam);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(w * 0.18, 0.045, 6, 24),
+      mat(accent, { emissive: accent, ei: 1.4 }));
+    ring.rotation.x = Math.PI / 2; ring.position.y = top + 1.5; ring.userData.spin = 1.1; g.add(ring);
+  },
+  // Terra Axis — external structural exoskeleton frame
+  frame({ g, w, trim, top }) {
+    const fm = concreteMat(trim);
+    const h = Math.min(top * 0.92, top - 0.1);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const beam = box(0.12, h, 0.12, fm, 0.1);
+      beam.position.set(sx * w * 0.44, beam.position.y, sz * w * 0.44); g.add(beam);
+    }
+    for (const sz of [-1, 1]) {
+      const rail = box(w * 0.88, 0.1, 0.12, fm, h);
+      rail.position.z = sz * w * 0.44; g.add(rail);
+    }
+  },
+  // Vital Helix — double-helix strand climbing a mast
+  helix({ g, w, accent, accent2, top }) {
+    const mastM = mat(0x565c66, { metal: 0.7, rough: 0.35 });
+    const pole = cyl(0.04, 0.06, 1.9, mastM, top - 0.2, 6);
+    pole.position.x = w * 0.3; pole.position.z = -w * 0.3; g.add(pole);
+    const beads = new THREE.Group();
+    for (let i = 0; i < 14; i++) {
+      const t = i / 13, a = t * Math.PI * 3.2;
+      for (const [phase, col] of [[0, accent], [Math.PI, accent2]]) {
+        const b = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 5),
+          mat(col, { emissive: col, ei: 1.1, metal: 0 }));
+        b.position.set(Math.cos(a + phase) * 0.22, top - 0.1 + t * 1.7, Math.sin(a + phase) * 0.22);
+        beads.add(b);
+      }
+    }
+    beads.position.set(w * 0.3, 0, -w * 0.3); beads.userData.spin = 0.6; g.add(beads);
+  },
+  // Binary Loom — vertical data-fin array
+  fins({ g, w, accent, trim, top }) {
+    const fm = concreteMat(trim);
+    for (let i = 0; i < 4; i++) {
+      const fh = 0.9 - i * 0.14;
+      const fin = box(0.07, fh, 0.55, fm, top - 0.05);
+      fin.position.x = -w * 0.3 + i * (w * 0.2); g.add(fin);
+      const edge = box(0.03, fh * 0.9, 0.05, mat(accent, { emissive: accent, ei: 1.2 }), top - 0.02);
+      edge.position.set(-w * 0.3 + i * (w * 0.2), edge.position.y, 0.28); g.add(edge);
+    }
+  },
+  // Gaia Synthesis — working wind turbine
+  turbine({ g, w, y0, trim }) {
+    const tx = w * 0.38, tz = w * 0.38;
+    const mastM = concreteMat(trim);
+    const mast = cyl(0.05, 0.09, 2.6, mastM, y0, 8);
+    mast.position.set(tx, mast.position.y, tz); g.add(mast);
+    const hub = new THREE.Group(); hub.position.set(tx, y0 + 2.6, tz);
+    hub.userData.spin = 2.2; hub.rotation.x = Math.PI / 2; // blades spin in a vertical plane
+    const bladeM = mat(0xdfe4ea, { metal: 0.3, rough: 0.5 });
+    for (let i = 0; i < 3; i++) {
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.0, 0.14), bladeM);
+      blade.position.y = 0.5; blade.castShadow = true;
+      const arm = new THREE.Group(); arm.rotation.z = (i / 3) * Math.PI * 2;
+      arm.add(blade); hub.add(arm);
+    }
+    g.add(hub);
+  },
+  // Animus Prime — heavy armored pylons with warning glow
+  pylons({ g, w, y0, accent, trim }) {
+    const pm = concreteMat(trim);
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const p = box(0.32, 1.5, 0.32, pm, y0);
+      p.position.set(sx * w * 0.42, p.position.y, sz * w * 0.42);
+      p.rotation.y = Math.PI / 4; g.add(p);
+      const glow = box(0.34, 0.09, 0.34, mat(accent, { emissive: accent, ei: 1.3 }), y0 + 1.15);
+      glow.position.set(sx * w * 0.42, glow.position.y, sz * w * 0.42);
+      glow.rotation.y = Math.PI / 4; g.add(glow);
+    }
+  },
+  // Aether Link — segmented relay mast with dishes
+  mast({ g, w, y0, accent, top }) {
+    const mx = w * 0.36, mz = w * 0.34;
+    const mm = mat(0x565c66, { metal: 0.7, rough: 0.35 });
+    const s1 = cyl(0.06, 0.11, 1.6, mm, y0, 6); s1.position.set(mx, s1.position.y, mz); g.add(s1);
+    const s2 = cyl(0.03, 0.06, 1.3, mm, y0 + 1.6, 6); s2.position.set(mx, s2.position.y, mz); g.add(s2);
+    for (let i = 0; i < 2; i++) {
+      const drum = cyl(0.12, 0.12, 0.2, mat(0xd7dbe2, { metal: 0.3, rough: 0.5 }), y0 + 1.2 + i * 0.7, 10);
+      drum.position.set(mx, drum.position.y, mz); g.add(drum);
+    }
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), mat(accent, { emissive: accent, ei: 1.8 }));
+    tip.position.set(mx, y0 + 3.05, mz); tip.userData.pulse = 1; g.add(tip);
+  },
+  // Obsidian Arc — angled corner armor shields
+  bastion({ g, w, y0, accent, trim }) {
+    const am = concreteMat(trim, 0.8);
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const plate = box(0.7, 1.1, 0.1, am, y0);
+      plate.position.set(sx * w * 0.4, plate.position.y, sz * w * 0.4);
+      plate.rotation.y = Math.atan2(sx, sz) + Math.PI;
+      plate.rotation.x = -0.14; g.add(plate);
+    }
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), mat(accent, { emissive: accent, ei: 1.6 }));
+    eye.position.set(0, y0 + 1.55, w * 0.4); g.add(eye);
+  },
+  // Kinetic Edge — swept speed blades
+  blades({ g, w, y0, accent, trim }) {
+    const bm = concreteMat(trim);
+    for (let i = 0; i < 3; i++) {
+      const blade = box(0.1, 1.1 + i * 0.45, 0.5, bm, y0);
+      blade.position.set(-w * 0.42 + i * 0.42, blade.position.y, -w * 0.4);
+      blade.rotation.z = 0.28; g.add(blade);
+      const tip = box(0.05, 0.3, 0.4, mat(accent, { emissive: accent, ei: 1.2 }), y0 + 0.85 + i * 0.45);
+      tip.position.set(-w * 0.42 + i * 0.42 + 0.32, tip.position.y, -w * 0.4);
+      tip.rotation.z = 0.28; g.add(tip);
+    }
+  },
+  // Civic Core — plaza flag row
+  flags({ g, w, y0, accent, accent2 }) {
+    const poleM = mat(0x9ba0a8, { metal: 0.6, rough: 0.4 });
+    for (let i = 0; i < 3; i++) {
+      const x = -w * 0.2 + i * w * 0.2, z = w * 0.44;
+      const pole = cyl(0.025, 0.035, 1.5, poleM, y0, 6);
+      pole.position.set(x, pole.position.y, z); g.add(pole);
+      const col = i === 1 ? accent2 : accent;
+      const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.44, 0.26),
+        mat(col, { emissive: col, ei: 0.5, metal: 0, rough: 0.8 }));
+      flag.material.side = THREE.DoubleSide;
+      flag.position.set(x + 0.24, y0 + 1.32, z); g.add(flag);
+    }
+  },
+  // Quantum Ledger — gilded crown band and orb
+  crown({ g, w, accent2, top }) {
+    const gold = mat(0xd8b968, { emissive: 0x8a6a20, ei: 0.5, metal: 0.85, rough: 0.25 });
+    const band = new THREE.Mesh(new THREE.TorusGeometry(w * 0.24, 0.06, 8, 28), gold);
+    band.rotation.x = Math.PI / 2; band.position.y = top + 0.16; g.add(band);
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8),
+      mat(accent2, { emissive: accent2, ei: 1.4, metal: 0.4 }));
+    orb.position.y = top + 0.6; orb.userData.pulse = 1; g.add(orb);
+  },
+  // Collective Consulting — glass atrium annex
+  atrium({ g, w, y0, accent, trim }) {
+    const glassM = mat(0x2c3e58, { emissive: accent, ei: 0.4, metal: 0.6, rough: 0.2 });
+    const cube = box(0.9, 0.9, 0.9, glassM, y0);
+    cube.position.set(w * 0.36, cube.position.y, -w * 0.36); cube.rotation.y = Math.PI / 7; g.add(cube);
+    const cap = box(1.0, 0.08, 1.0, concreteMat(trim), y0 + 0.9);
+    cap.position.set(w * 0.36, cap.position.y, -w * 0.36); cap.rotation.y = Math.PI / 7; g.add(cap);
+  },
+  // Cognara Mind — hovering mind-orb in a tilted ring
+  orb({ g, w, accent, accent2, top }) {
+    const o = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 9),
+      mat(accent2, { emissive: accent2, ei: 1.6, metal: 0.2 }));
+    o.position.y = top + 0.75; o.userData.pulse = 1; g.add(o);
+    const cage = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.03, 6, 24),
+      mat(accent, { emissive: accent, ei: 0.9, metal: 0.5 }));
+    cage.position.y = top + 0.75; cage.rotation.x = Math.PI / 3; cage.userData.spin = 0.8; g.add(cage);
+  },
+  // Juris Guard — corner columns with an entablature bar
+  columns({ g, w, y0, trim }) {
+    const stone = concreteMat(trim, 0.8);
+    for (const sx of [-1, 1]) {
+      const c = cyl(0.1, 0.13, 1.6, stone, y0, 10);
+      c.position.set(sx * w * 0.32, c.position.y, w * 0.43); g.add(c);
+    }
+    const bar = box(w * 0.72, 0.16, 0.24, stone, y0 + 1.6);
+    bar.position.z = w * 0.43; g.add(bar);
+  },
+  // Signal Velocity — large glowing division billboard
+  billboard({ g, w, y0, top }) {
+    const face = divisionSignMat(STYLE.num, STYLE.accentCss);
+    const frame = mat(0x22262e, { metal: 0.5, rough: 0.45 });
+    const poleM = mat(0x565c66, { metal: 0.7, rough: 0.35 });
+    const pole = cyl(0.06, 0.09, top + 1.0 - y0, poleM, y0, 8);
+    pole.position.set(-w * 0.36, pole.position.y, -w * 0.36); g.add(pole);
+    const bb = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.85, 0.08),
+      [frame, frame, frame, frame, face, face]);
+    bb.position.set(-w * 0.36, top + 1.0, -w * 0.36);
+    bb.rotation.y = Math.PI / 4; shadowed(bb); g.add(bb);
+  },
+  // Titan Directorate — foundry smokestacks with ember collars
+  stacks({ g, w, y0, trim }) {
+    for (let i = 0; i < 2; i++) {
+      const x = w * 0.36 - i * 0.5, z = -w * 0.38;
+      const s = cyl(0.11, 0.16, 2.0 + i * 0.5, concreteMat(trim, 0.85), y0, 10);
+      s.position.set(x, s.position.y, z); g.add(s);
+      const ember = cyl(0.12, 0.12, 0.1, mat(0xff7a3c, { emissive: 0xff5a1c, ei: 1.5 }), y0 + 1.85 + i * 0.5, 10);
+      ember.position.set(x, ember.position.y, z); ember.userData.pulse = 1; g.add(ember);
+    }
+  },
+  // Nomad Nexus — tensile nomad sails
+  sails({ g, w, y0, accent, trim }) {
+    const poleM = concreteMat(trim);
+    for (const [x, z, ry] of [[-w * 0.38, w * 0.36, 0.5], [w * 0.4, -w * 0.32, 2.4]]) {
+      const pole = cyl(0.035, 0.05, 1.7, poleM, y0, 6);
+      pole.position.set(x, pole.position.y, z); g.add(pole);
+      const sail = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.3, 3, 1, true),
+        mat(accent, { emissive: accent, ei: 0.35, metal: 0.1, rough: 0.7 }));
+      sail.material.side = THREE.DoubleSide;
+      sail.scale.z = 0.12;                    // flatten into a canvas sail
+      sail.position.set(x, y0 + 0.95, z);
+      sail.rotation.y = ry; sail.rotation.x = 0.2;
+      sail.castShadow = true; g.add(sail);
+    }
+  },
+};
+
+function addMotif(g, w, r, y0) {
+  const fn = MOTIFS[STYLE.motif];
+  if (!fn) return;
+  const bbox = new THREE.Box3().setFromObject(g);
+  const top = Math.max(1.2, bbox.max.y);
+  fn({ g, w, r, y0, top, accent: STYLE.accent, accent2: STYLE.accent2, trim: STYLE.trim });
 }
 
 // ===========================================================================
@@ -646,20 +985,32 @@ function genGenericOffice(g, w, fac, accent, r, y0) {
 // ===========================================================================
 // PUBLIC API
 // ===========================================================================
-export function buildingMesh(def, color, color2, seed = 1) {
+// `fc` is the faction descriptor: { color, color2, num, arch } where arch is
+// the division's architectural identity from factions.js.
+export function buildingMesh(def, fc, seed = 1) {
   const g = new THREE.Group();
   const size = def.size;
   const w = size * TILE;
+  const color = fc.color, color2 = fc.color2 || fc.color;
+  const arch = fc.arch || {};
   const accent = new THREE.Color(color).getHex();
-  const accent2 = new THREE.Color(color2 || color).getHex();
+  const accent2 = new THREE.Color(color2).getHex();
   const accentCss = new THREE.Color(color).getStyle();
   const r = rng32(seed * 2654435761);
 
-  const office = makeFacade('office', accentCss);
-  const glass = makeFacade('glass', accentCss);
-  const industrial = makeFacade('industrial', accentCss);
-  const residential = makeFacade('residential', accentCss);
-  const civic = makeFacade('civic', accentCss);
+  STYLE = {
+    num: fc.num || '',
+    accent, accent2, accentCss,
+    wall: arch.wall || null,
+    trim: new THREE.Color(arch.trim || '#9ba0a8').getHex(),
+    motif: arch.motif || null,
+  };
+
+  const office = makeFacade('office', accentCss, STYLE.wall);
+  const glass = makeFacade('glass', accentCss, STYLE.wall);
+  const industrial = makeFacade('industrial', accentCss, STYLE.wall);
+  const residential = makeFacade('residential', accentCss, STYLE.wall);
+  const civic = makeFacade('civic', accentCss, STYLE.wall);
 
   g.add(foundation(size, accent));
   const y0 = 0.22;
@@ -677,7 +1028,13 @@ export function buildingMesh(def, color, color2, seed = 1) {
     case 'defense_node': genDefenseNode(g, w, industrial, accent, r, y0); break;
     default: genGenericOffice(g, w, office, accent, r, y0); break;
   }
+
+  // Division identity: signature motif + number sign on every building.
+  addMotif(g, w, r, y0);
+  if (STYLE.num && def.id !== 'defense_node') addSignage(g, w, y0);
+
   compileStatic(g);
+  STYLE = null;
   return g;
 }
 

@@ -12,7 +12,13 @@ export class Minimap {
     this.ctx = canvas.getContext('2d');
     this.game = game;
     this.renderer = renderer;
+    // Render the backing store at device resolution (CSS controls display
+    // size) so the map stays crisp on high-DPI screens.
     this.size = canvas.width;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = this.size * dpr;
+    canvas.height = this.size * dpr;
+    this.ctx.scale(dpr, dpr);
     this.S = MAP.SIZE;
     this._bindInput();
   }
